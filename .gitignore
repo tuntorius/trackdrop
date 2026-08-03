@@ -10,6 +10,7 @@ firebase/functions/.env
 .gradle
 .vscode
 build
+**/build/
 
 # OS
 .DS_Store
