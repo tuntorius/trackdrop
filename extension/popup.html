@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body { width: 260px; padding: 12px; font-family: sans-serif; font-size: 14px; }
+    input { width: 100%; margin-bottom: 10px; padding: 6px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; }
+    button { width: 100%; padding: 8px; background: #4F6814; color: white; border: none; cursor: pointer; border-radius: 4px; font-weight: bold; transition: background 0.2s; }
+    button:hover { background: #3f550f; }
+    #sendBtn { background:#2D8953; margin-top:0; }
+    #sendBtn:hover { background: #246b41; }
+    #sendBtn:disabled { background: #cccccc; cursor: not-allowed; }
+    #unpairBtn { background:transparent; color:#999; font-weight:normal; margin-top:10px; font-size:12px; }
+    #status { margin-top: 10px; color: #333; font-size: 12px; text-align: center; }
+    .hidden { display: none; }
+    h3 { margin-top: 0; color: #333; }
+    .warning { 
+      color: #8a6d3b; 
+      background-color: #fcf8e3; 
+      border: 1px solid #faebcc; 
+      padding: 8px; 
+      margin-top: 10px; 
+      border-radius: 4px; 
+      font-size: 11px; 
+      line-height: 1.4; 
+    }
+  </style>
+</head>
+<body>
+  <!-- Pairing View -->
+  <div id="pairView">
+    <h3>Pair TrackDrop</h3>
+    <p style="font-size:12px; color:#666;">Enter the 6-digit code from your phone:</p>
+    <input type="text" id="codeInput" placeholder="e.g. 123-456" maxlength="7" />
+    <button id="pairBtn">Pair Device</button>
+  </div>
+
+  <!-- Send View -->
+  <div id="sendView" class="hidden">
+    <h3>TrackDrop Ready</h3>
+    <button id="sendBtn" disabled>Send Current Tab</button>
+    <div id="warningText" class="warning hidden"></div>
+    <button id="unpairBtn">Unpair Device</button>
+  </div>
+  
+  <div id="status"></div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

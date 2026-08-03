@@ -1,0 +1,16 @@
+# Android / Firebase
+app/google-services.json
+*.keystore
+*.jks
+
+# Node.js / Firebase Functions
+firebase/functions/node_modules/
+firebase/functions/.env
+
+.gradle
+.vscode
+build
+
+# OS
+.DS_Store
+Thumbs.db

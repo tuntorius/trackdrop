@@ -1,0 +1,12 @@
+{
+  "manifest_version": 3,
+  "name": "TrackDrop",
+  "version": "1.0",
+  "permissions": ["activeTab", "storage"],
+  "host_permissions": [
+    "https://sendtrack-fptlqp3r2a-uc.a.run.app/*"
+  ],
+  "action": {
+    "default_popup": "popup.html"
+  }
+}
