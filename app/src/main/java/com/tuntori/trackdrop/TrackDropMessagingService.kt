@@ -20,8 +20,7 @@ class TrackDropMessagingService : FirebaseMessagingService() {
 
     companion object {
         const val CHANNEL_ID = "trackdrop_routes"
-        const val CACHE_FILE = "last_received_track.gpx"
-        const val CACHE_NAME = "last_received_name.txt"
+        const val CACHE_FILE = "last_received_track.json"
     }
 
     override fun onMessageReceived(remoteMessage: RemoteMessage) {
@@ -41,13 +40,29 @@ class TrackDropMessagingService : FirebaseMessagingService() {
             
             // Check if the app is in the foreground!
             if (ForegroundManager.listener != null) {
-                // App is open. Send data directly to the UI. No system notification!
+                // App is open. Send data directly to the UI.
                 ForegroundManager.listener?.invoke(result)
             } else {
-                // App is in background. Save to cache and show system notification.
-                File(cacheDir, CACHE_FILE).writeText(result.gpx)
-                File(cacheDir, CACHE_NAME).writeText(result.tour.name)
-                showNotification("Track received: ${result.tour.name}", "Tap to open in Organic Maps.")
+                // App is in background. Serialize the whole result to a JSON file.
+                val json = org.json.JSONObject().apply {
+                    put("gpx", result.gpx)
+                    put("filename", result.filename)
+                    put("name", result.tour.name)
+                    put("distance", result.tour.distance)
+                    put("up", result.tour.up)
+                    put("down", result.tour.down)
+                    val ptsArray = org.json.JSONArray()
+                    result.points.forEach { p ->
+                        val pt = org.json.JSONArray()
+                        pt.put(p.first)
+                        pt.put(p.second)
+                        ptsArray.put(pt)
+                    }
+                    put("points", ptsArray)
+                }
+                File(cacheDir, CACHE_FILE).writeText(json.toString())
+                
+                showNotification("Track received: ${result.tour.name}", "Tap to open.")
             }
         } catch (e: Exception) {
             if (ForegroundManager.listener != null) {

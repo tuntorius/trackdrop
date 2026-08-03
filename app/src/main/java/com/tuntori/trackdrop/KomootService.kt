@@ -31,6 +31,7 @@ object KomootService : RouteProvider {
         val items = coordsJson.optJSONArray("items")
             ?: throw ApiException("No coordinate data in this route.")
 
+        val points = mutableListOf<Pair<Double, Double>>()
         val gpx = buildString {
             append("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\" ?>\n")
             append("<gpx version=\"1.1\" creator=\"TrackDrop\"\n")
@@ -39,14 +40,17 @@ object KomootService : RouteProvider {
             append("  <rte>\n")
             for (i in 0 until items.length()) {
                 val c = items.getJSONObject(i)
-                val lat = c.opt("lat") ?: c.opt("lat_rounded") ?: 0
-                val lng = c.opt("lng") ?: c.opt("lng_rounded") ?: 0
-                val alt = c.opt("alt") ?: 0
+                val lat = c.optDouble("lat", c.optDouble("lat_rounded", 0.0))
+                val lng = c.optDouble("lng", c.optDouble("lng_rounded", 0.0))
+                val alt = c.optDouble("alt", 0.0)
+
+                points.add(Pair(lat, lng)) // Save for the UI
+
                 append("    <rtept lat=\"$lat\" lon=\"$lng\"><ele>$alt</ele></rtept>\n")
             }
             append("  </rte>\n</gpx>")
         }
 
-        return FetchResult(Tour(tourName, distance, up, down), gpx, "${NetworkUtils.sanitizeFilename(tourName)}.gpx")
+        return FetchResult(Tour(tourName, distance, up, down), gpx, "${NetworkUtils.sanitizeFilename(tourName)}.gpx", points)
     }
 }

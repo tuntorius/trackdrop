@@ -33,6 +33,7 @@ object RideWithGpsService : RouteProvider {
         val items = json.optJSONArray("track_points")
             ?: throw ApiException("No coordinate data in this route.")
 
+        val points = mutableListOf<Pair<Double, Double>>()
         val gpx = buildString {
             append("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\" ?>\n")
             append("<gpx version=\"1.1\" creator=\"TrackDrop\"\n")
@@ -42,14 +43,17 @@ object RideWithGpsService : RouteProvider {
             for (i in 0 until items.length()) {
                 val c = items.getJSONObject(i)
                 // RWGPS uses x for longitude, y for latitude, e for elevation
-                val lat = c.opt("y") ?: 0
-                val lng = c.opt("x") ?: 0
-                val alt = c.opt("e") ?: 0
+                val lat = c.optDouble("y", 0.0)
+                val lng = c.optDouble("x", 0.0)
+                val alt = c.optDouble("e", 0.0)
+
+                points.add(Pair(lat, lng)) // Save for the UI
+
                 append("    <rtept lat=\"$lat\" lon=\"$lng\"><ele>$alt</ele></rtept>\n")
             }
             append("  </rte>\n</gpx>")
         }
 
-        return FetchResult(Tour(routeName, distance, up, down), gpx, "${NetworkUtils.sanitizeFilename(routeName)}.gpx")
+        return FetchResult(Tour(routeName, distance, up, down), gpx, "${NetworkUtils.sanitizeFilename(routeName)}.gpx", points)
     }
 }

@@ -30,6 +30,9 @@ import java.net.SocketException
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.updatePadding
 
 class MainActivity : AppCompatActivity() {
 
@@ -43,6 +46,14 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
         window.statusBarColor = Color.parseColor("#4F6814")
+
+        // Apply SafeArea (Window Insets) padding to the root view
+        ViewCompat.setOnApplyWindowInsetsListener(binding.root) { v, insets ->
+            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            // Add padding to the top and bottom to avoid system bars
+            v.updatePadding(top = systemBars.top, bottom = systemBars.bottom)
+            insets
+        }
 
         setupUrlField()
         setupButtons()
@@ -144,7 +155,6 @@ class MainActivity : AppCompatActivity() {
         binding.btnOrganicMaps.isEnabled = isInstalled
         binding.btnOrganicMaps.text = if (isInstalled) "Open in Organic Maps" else "Organic Maps not installed"
 
-        // Register the foreground listener
         ForegroundManager.listener = { result ->
             if (result != null) {
                 handleForegroundPush(result)
@@ -166,22 +176,43 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun loadCachedTrack() {
-        val gpxFile = File(cacheDir, TrackDropMessagingService.CACHE_FILE)
-        val nameFile = File(cacheDir, TrackDropMessagingService.CACHE_NAME)
-        if (gpxFile.exists() && nameFile.exists()) {
-            val gpx = gpxFile.readText()
-            val name = nameFile.readText()
-            // We don't have the exact distance/up/down without re-parsing, but we have the GPX!
-            // Let's just show the name and enable the buttons.
-            val result = FetchResult(Tour(name, 0.0, 0.0, 0.0), gpx, "$name.gpx")
+        val cacheFile = File(cacheDir, TrackDropMessagingService.CACHE_FILE)
+        if (!cacheFile.exists()) return
+        
+        try {
+            val json = org.json.JSONObject(cacheFile.readText())
+            val tour = Tour(
+                name = json.getString("name"),
+                distance = json.getDouble("distance"),
+                up = json.getDouble("up"),
+                down = json.getDouble("down")
+            )
+            
+            val ptsArray = json.getJSONArray("points")
+            val points = mutableListOf<Pair<Double, Double>>()
+            for (i in 0 until ptsArray.length()) {
+                val pt = ptsArray.getJSONArray(i)
+                points.add(Pair(pt.getDouble(0), pt.getDouble(1)))
+            }
+            
+            val result = FetchResult(
+                tour = tour,
+                gpx = json.getString("gpx"),
+                filename = json.getString("filename"),
+                points = points
+            )
+            
+            // Update the URL field text so the tag matches
+            binding.urlField.setText("Received via PC")
             binding.urlField.tag = result
-            binding.tourName.text = name
-            binding.tourStats.text = "Received from PC"
-            binding.loadingBar.visibility = View.GONE
-            binding.errorText.visibility = View.GONE
-            binding.tourCard.visibility = View.VISIBLE
-            binding.btnOrganicMaps.visibility = View.VISIBLE
-            binding.btnShare.visibility = View.VISIBLE
+            
+            // Use the standard success UI!
+            showSuccessUI(result)
+            
+            // Delete the cache file so it doesn't load again next time you open the app
+            cacheFile.delete()
+        } catch (e: Exception) {
+            Log.e("TrackDrop", "Error loading cached track", e)
         }
     }
 
@@ -278,9 +309,13 @@ class MainActivity : AppCompatActivity() {
                 result.tour.distance / 1000, result.tour.up.toInt(), result.tour.down.toInt()
             )
             binding.loadingBar.visibility = View.GONE
+            binding.errorText.visibility = View.GONE
             binding.tourCard.visibility = View.VISIBLE
             binding.btnOrganicMaps.visibility = View.VISIBLE
             binding.btnShare.visibility = View.VISIBLE
+            
+            // Draw the route shape!
+            binding.routePreview.setPoints(result.points)
         }
     }
 
