@@ -4,7 +4,9 @@
   "version": "1.0",
   "permissions": ["activeTab", "storage"],
   "host_permissions": [
-    "https://sendtrack-fptlqp3r2a-uc.a.run.app/*"
+    "https://sendtrack-fptlqp3r2a-uc.a.run.app/*",
+    "https://api.komoot.de/*",
+    "https://ridewithgps.com/*"
   ],
   "action": {
     "default_popup": "popup.html"

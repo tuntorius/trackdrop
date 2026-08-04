@@ -6,7 +6,7 @@ import java.net.URL
 
 // --- Shared Models ---
 data class Tour(val name: String, val distance: Double, val up: Double, val down: Double)
-data class FetchResult(val tour: Tour, val gpx: String, val filename: String, val points: List<Pair<Double, Double>>)
+data class FetchResult(val tour: Tour, val gpx: String, val filename: String, val points: List<Pair<Double, Double>>, val url: String)
 class ApiException(message: String) : Exception(message)
 
 // --- Provider Interface ---

@@ -51,6 +51,6 @@ object KomootService : RouteProvider {
             append("  </rte>\n</gpx>")
         }
 
-        return FetchResult(Tour(tourName, distance, up, down), gpx, "${NetworkUtils.sanitizeFilename(tourName)}.gpx", points)
+        return FetchResult(Tour(tourName, distance, up, down), gpx, "${NetworkUtils.sanitizeFilename(tourName)}.gpx", points, url)
     }
 }

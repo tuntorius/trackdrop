@@ -25,13 +25,13 @@
                 android:layout_width="38dp"
                 android:layout_height="38dp"
                 android:background="#4F6814">
+                
                 <ImageView
-                    android:layout_width="20dp"
-                    android:layout_height="20dp"
-                    android:layout_gravity="center"
-                    android:src="@android:drawable/ic_dialog_map"
-                    android:contentDescription="Map"
-                    app:tint="@android:color/white" />
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:src="@drawable/ic_launcher_foreground"
+                    android:scaleType="centerCrop"
+                    android:contentDescription="TrackDrop Logo" />     
             </FrameLayout>
 
             <LinearLayout
@@ -40,10 +40,11 @@
                 android:layout_weight="1"
                 android:layout_marginStart="12dp"
                 android:orientation="vertical">
+                
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Paste a supported route url here"
+                    android:text="TrackDrop"
                     android:textSize="17sp"
                     android:textStyle="bold"
                     android:textColor="#000000" />
@@ -51,28 +52,30 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Fetch and send as GPX to your maps app."
+                    android:text="Share a link or push from PC. Your route appears instantly."
                     android:textSize="12.5sp"
-                    android:textColor="#666666" />
+                    android:textColor="#4F6814" />
             </LinearLayout>
         </LinearLayout>
 
-        <!-- URL Input -->
-        <EditText
-            android:id="@+id/urlField"
+        <!-- Read-Only URL Label -->
+        <TextView
+            android:id="@+id/urlLabel"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="Paste a supported route url here"
+            android:textIsSelectable="true"
+            android:hint="Waiting for track..."
             android:textSize="14sp"
-            android:inputType="textUri"
             android:background="@drawable/bg_url_field"
             android:padding="16dp"
             android:drawableStart="@android:drawable/ic_menu_directions"
             android:drawablePadding="8dp"
             android:drawableTint="#4F6814"
+            android:gravity="center_vertical"
+            android:singleLine="true"
+            android:ellipsize="end"
             android:autofillHints=""
-            android:imeOptions="actionDone"
-            android:singleLine="true" />
+            android:imeOptions="actionDone" />
 
         <!-- Loading -->
         <ProgressBar
@@ -141,38 +144,14 @@
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 
-        <View
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1" />
-
-        <!-- Organic Maps Button -->
-        <Button
-            android:id="@+id/btnOrganicMaps"
-            android:layout_width="match_parent"
-            android:layout_height="50dp"
-            android:layout_marginTop="16dp"
-            android:background="@drawable/bg_om_button"
-            android:text="Open in Organic Maps"
-            android:textColor="#FFFFFF"
-            android:textAllCaps="false"
-            android:textSize="15sp"
-            android:drawableStart="@android:drawable/ic_dialog_map"
-            android:drawableTint="#FFFFFF"
-            android:paddingStart="16dp"
-            android:paddingEnd="16dp"
-            android:drawablePadding="8dp"
-            android:visibility="gone" />
-
-        <!-- Share Button -->
+        <!-- 1st Button: Share with any app -->
         <Button
             android:id="@+id/btnShare"
             android:layout_width="match_parent"
             android:layout_height="50dp"
-            android:layout_marginTop="10dp"
-            android:layout_marginBottom="32dp"
+            android:layout_marginTop="16dp"
             android:background="@drawable/bg_share_button"
-            android:text="Share with other app"
+            android:text="Share with any app"
             android:textColor="#FFFFFF"
             android:textAllCaps="false"
             android:textSize="15sp"
@@ -182,6 +161,53 @@
             android:paddingEnd="16dp"
             android:drawablePadding="8dp"
             android:visibility="gone" />
+
+        <!-- 2nd Button: Split Button for Favorite App -->
+        <LinearLayout
+            android:id="@+id/favAppContainer"
+            android:layout_width="match_parent"
+            android:layout_height="50dp"
+            android:layout_marginTop="10dp"
+            android:layout_marginBottom="32dp"
+            android:orientation="horizontal"
+            android:background="@drawable/bg_om_button"
+            android:visibility="gone"
+            android:weightSum="10">
+
+            <Button
+                android:id="@+id/btnFavApp"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="8.5"
+                android:background="@android:color/transparent"
+                android:text="Pick Favorite App"
+                android:textColor="#FFFFFF"
+                android:textAllCaps="false"
+                android:textSize="15sp"
+                android:drawableStart="@android:drawable/ic_dialog_map"
+                android:drawableTint="#FFFFFF"
+                android:paddingStart="16dp"
+                android:paddingEnd="8dp"
+                android:drawablePadding="8dp"
+                android:gravity="center" /> <!-- Changed to center -->
+
+            <View
+                android:id="@+id/dividerFavApp"
+                android:layout_width="1dp"
+                android:layout_height="30dp"
+                android:layout_gravity="center_vertical"
+                android:background="#FFFFFF" />
+
+            <ImageButton
+                android:id="@+id/btnFavAppConfig"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1.5"
+                android:background="@android:color/transparent"
+                android:src="@android:drawable/arrow_down_float"
+                android:scaleType="centerInside"
+                android:visibility="gone" />
+        </LinearLayout>
 
         <!-- Pairing Button -->
         <Button

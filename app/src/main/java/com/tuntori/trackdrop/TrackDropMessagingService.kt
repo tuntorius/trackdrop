@@ -46,6 +46,7 @@ class TrackDropMessagingService : FirebaseMessagingService() {
                 // App is in background. Serialize the whole result to a JSON file.
                 val json = org.json.JSONObject().apply {
                     put("gpx", result.gpx)
+                    put("url", url)
                     put("filename", result.filename)
                     put("name", result.tour.name)
                     put("distance", result.tour.distance)

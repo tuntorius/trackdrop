@@ -4,23 +4,28 @@ import android.net.Uri
 
 object RideWithGpsService : RouteProvider {
     override fun isValidUrl(url: String): Boolean {
-        return url.contains("ridewithgps.com/routes/")
+        return url.contains("ridewithgps.com/routes/") || url.contains("ridewithgps.com/trips/")
     }
 
     override fun fetchTour(url: String): FetchResult {
         val uri = Uri.parse(url)
-        val routeMatch = Regex("""/routes/(\d+)""").find(uri.path ?: "")
-            ?: throw ApiException("No RideWithGPS route ID found in URL.")
-        val routeId = routeMatch.groupValues[1]
+        // Match either /routes/ or /trips/ and capture the ID
+        val routeMatch = Regex("""/(routes|trips)/(\d+)""").find(uri.path ?: "")
+            ?: throw ApiException("No RideWithGPS route/trip ID found in URL.")
+
+        // The ID is now in group 2 because (routes|trips) is group 1
+        val routeId = routeMatch.groupValues[2]
 
         // Extract privacy_code if it exists
         val privacyCode = uri.getQueryParameter("privacy_code")
         
-        // Build the .json URL correctly, appending the privacy_code if present
+        // Build the .json URL correctly. We can just use "routes" for the API endpoint,
+        // or we can use the actual path. RWGPS API usually normalizes this, but let's be safe.
+        val pathType = routeMatch.groupValues[1] 
         val jsonUrl = if (privacyCode != null) {
-            "https://ridewithgps.com/routes/$routeId.json?privacy_code=$privacyCode"
+            "https://ridewithgps.com/$pathType/$routeId.json?privacy_code=$privacyCode"
         } else {
-            "https://ridewithgps.com/routes/$routeId.json"
+            "https://ridewithgps.com/$pathType/$routeId.json"
         }
 
         val json = NetworkUtils.fetchJson(jsonUrl)
@@ -42,6 +47,10 @@ object RideWithGpsService : RouteProvider {
             append("  <rte>\n")
             for (i in 0 until items.length()) {
                 val c = items.getJSONObject(i)
+
+                // Skip points that don't have GPS coordinates
+                if (!c.has("x") || !c.has("y")) continue
+                
                 // RWGPS uses x for longitude, y for latitude, e for elevation
                 val lat = c.optDouble("y", 0.0)
                 val lng = c.optDouble("x", 0.0)
@@ -54,6 +63,6 @@ object RideWithGpsService : RouteProvider {
             append("  </rte>\n</gpx>")
         }
 
-        return FetchResult(Tour(routeName, distance, up, down), gpx, "${NetworkUtils.sanitizeFilename(routeName)}.gpx", points)
+        return FetchResult(Tour(routeName, distance, up, down), gpx, "${NetworkUtils.sanitizeFilename(routeName)}.gpx", points, url)
     }
 }

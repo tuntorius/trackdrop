@@ -2,112 +2,88 @@ package com.tuntori.trackdrop
 
 import android.Manifest
 import android.app.AlertDialog
-import android.content.pm.PackageManager
-import android.os.Build
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.core.content.ContextCompat
-import com.google.firebase.ktx.Firebase
-import com.google.firebase.messaging.FirebaseMessaging
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.content.pm.ResolveInfo
 import android.graphics.Color
+import android.net.Uri
+import android.os.Build
 import android.os.Bundle
-import android.text.Editable
-import android.text.TextWatcher
 import android.util.Log
-import android.view.MotionEvent
 import android.view.View
+import android.view.ViewGroup
+import android.widget.ArrayAdapter
+import android.widget.LinearLayout
+import android.widget.ListView
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.content.res.ResourcesCompat
+import androidx.core.content.ContextCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.updatePadding
 import androidx.lifecycle.lifecycleScope
+import com.google.firebase.ktx.Firebase
+import com.google.firebase.messaging.FirebaseMessaging
 import com.tuntori.trackdrop.databinding.ActivityMainBinding
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.net.SocketException
 import java.io.File
 import java.net.HttpURLConnection
+import java.net.SocketException
 import java.net.URL
-import androidx.core.view.ViewCompat
-import androidx.core.view.WindowInsetsCompat
-import androidx.core.view.updatePadding
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
     private var isFetching = false
-    private var currentProvider: RouteProvider? = null
-    private lateinit var textWatcher: TextWatcher
+    private var currentResult: FetchResult? = null
+    private var favAppPackageName: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
         window.statusBarColor = Color.parseColor("#4F6814")
+        // Tell Android to use dark icons in the status bar because our app background is light
+        WindowCompat.getInsetsController(window, binding.root).isAppearanceLightStatusBars = true
 
         // Apply SafeArea (Window Insets) padding to the root view
         ViewCompat.setOnApplyWindowInsetsListener(binding.root) { v, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-            // Add padding to the top and bottom to avoid system bars
             v.updatePadding(top = systemBars.top, bottom = systemBars.bottom)
             insets
         }
 
-        setupUrlField()
+        // Load saved favorite app
+        val prefs = getSharedPreferences("trackdrop_prefs", MODE_PRIVATE)
+        favAppPackageName = prefs.getString("fav_app_package", null)
+
         setupButtons()
         setupPairingButton()
         handleShareIntent(intent)
     }
 
-    private fun setupUrlField() {
-        binding.urlField.setOnTouchListener { v, event ->
-            if (event.action == MotionEvent.ACTION_UP) {
-                val drawable = binding.urlField.compoundDrawablesRelative[2]
-                if (drawable != null) {
-                    val rightBound = binding.urlField.right - binding.urlField.paddingRight - drawable.intrinsicWidth
-                    if (event.rawX.toInt() >= rightBound) {
-                        binding.urlField.setText("")
-                        return@setOnTouchListener true
-                    }
-                }
-            }
-            false
-        }
-
-        textWatcher = object : TextWatcher {
-            override fun afterTextChanged(s: Editable?) {
-                val url = s?.toString()?.trim() ?: ""
-                toggleClearIcon(url.isNotEmpty())
-                
-                if (url.isEmpty()) {
-                    resetUI()
-                    return
-                }
-                
-                currentProvider = ProviderRegistry.getProviderForUrl(url)
-                if (currentProvider == null) {
-                    showError("That doesn't look like a supported track URL.")
-                    return
-                }
-                scheduleFetch(url, currentProvider!!)
-            }
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
-        }
-        binding.urlField.addTextChangedListener(textWatcher)
-    }
-
     private fun setupButtons() {
-        binding.btnOrganicMaps.setOnClickListener {
-            (binding.urlField.tag as? FetchResult)?.let {
-                ShareService.openGpx(this, it.gpx, it.filename, true)
+        // Split Button setup
+        binding.btnFavApp.setOnClickListener {
+            if (favAppPackageName != null && currentResult != null) {
+                ShareService.openGpxInPackage(this, currentResult!!.gpx, currentResult!!.filename, favAppPackageName!!)
+            } else {
+                showAppPickerDialog()
             }
+        }
+
+        binding.btnFavAppConfig.setOnClickListener {
+            showAppPickerDialog()
         }
 
         binding.btnShare.setOnClickListener {
-            (binding.urlField.tag as? FetchResult)?.let {
+            currentResult?.let {
                 ShareService.openGpx(this, it.gpx, it.filename, false)
             }
         }
@@ -124,8 +100,10 @@ class MainActivity : AppCompatActivity() {
             val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT)
             if (!sharedText.isNullOrEmpty()) {
                 val url = sharedText.trim()
-                if (ProviderRegistry.getProviderForUrl(url) != null) {
-                    binding.urlField.setText(url)
+                val provider = ProviderRegistry.getProviderForUrl(url)
+                if (provider != null) {
+                    binding.urlLabel.text = url
+                    scheduleFetch(url, provider)
                 } else {
                     showError("Shared text is not a supported track URL.")
                 }
@@ -134,27 +112,21 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun toggleClearIcon(show: Boolean) {
-        val leftDrawable = ResourcesCompat.getDrawable(resources, android.R.drawable.ic_menu_directions, null)
-        leftDrawable?.setTint(Color.parseColor("#4F6814"))
-        
-        val rightDrawable = if (show) {
-            ResourcesCompat.getDrawable(resources, android.R.drawable.ic_menu_close_clear_cancel, null)
-        } else {
-            null
-        }
-        
-        binding.urlField.setCompoundDrawablesRelativeWithIntrinsicBounds(
-            leftDrawable, null, rightDrawable, null
-        )
-    }
-
     override fun onResume() {
         super.onResume()
-        val isInstalled = ShareService.isPackageInstalled(this, "app.organicmaps")
-        binding.btnOrganicMaps.isEnabled = isInstalled
-        binding.btnOrganicMaps.text = if (isInstalled) "Open in Organic Maps" else "Organic Maps not installed"
 
+        // Restore favorite app name if it was already selected
+        if (favAppPackageName != null) {
+            try {
+                val pm = packageManager
+                val label = pm.getApplicationLabel(pm.getApplicationInfo(favAppPackageName!!, 0))
+                updateFavAppButton(label.toString())
+            } catch (e: Exception) {
+                favAppPackageName = null
+                updateFavAppButton("")
+            }
+        }
+        
         ForegroundManager.listener = { result ->
             if (result != null) {
                 handleForegroundPush(result)
@@ -171,7 +143,6 @@ class MainActivity : AppCompatActivity() {
 
     override fun onPause() {
         super.onPause()
-        // Unregister to save battery and prevent leaks
         ForegroundManager.listener = null
     }
 
@@ -199,17 +170,11 @@ class MainActivity : AppCompatActivity() {
                 tour = tour,
                 gpx = json.getString("gpx"),
                 filename = json.getString("filename"),
-                points = points
+                points = points,
+                url = json.optString("url", "Received via PC")
             )
             
-            // Update the URL field text so the tag matches
-            binding.urlField.setText("Received via PC")
-            binding.urlField.tag = result
-            
-            // Use the standard success UI!
             showSuccessUI(result)
-            
-            // Delete the cache file so it doesn't load again next time you open the app
             cacheFile.delete()
         } catch (e: Exception) {
             Log.e("TrackDrop", "Error loading cached track", e)
@@ -226,24 +191,17 @@ class MainActivity : AppCompatActivity() {
 
     private fun handleForegroundPush(result: FetchResult) {
         runOnUiThread {
-            // Temporarily remove listener so setting the text doesn't trigger a duplicate fetch
-            binding.urlField.removeTextChangedListener(textWatcher)
-            binding.urlField.setText("Received via PC")
-            binding.urlField.addTextChangedListener(textWatcher)
-            
-            // Reuse our existing success UI function!
             showSuccessUI(result)
         }
     }
     
     private fun checkClipboard() {
-        if (binding.urlField.text?.toString()?.isNotEmpty() == true) return
+        if (currentResult != null) return // Don't overwrite if a track is already loaded
         
         try {
             val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
             if (!clipboard.hasPrimaryClip()) return
             
-            // Check MIME type first. If it's a URI, reading it won't trigger the Android 12 toast!
             val description = clipboard.primaryClipDescription ?: return
             val isUrl = description.hasMimeType(android.content.ClipDescription.MIMETYPE_TEXT_URILIST)
             val isText = description.hasMimeType(android.content.ClipDescription.MIMETYPE_TEXT_PLAIN)
@@ -252,9 +210,11 @@ class MainActivity : AppCompatActivity() {
             val clipItem = clipboard.primaryClip?.getItemAt(0) ?: return
             val clipText = clipItem.text?.toString()?.trim() ?: ""
             
-            if (ProviderRegistry.getProviderForUrl(clipText) != null) {
-                Log.d("TrackDrop", "Valid provider URL found! Setting text.")
-                binding.urlField.setText(clipText)
+            val provider = ProviderRegistry.getProviderForUrl(clipText)
+            if (provider != null) {
+                Log.d("TrackDrop", "Valid provider URL found! Fetching.")
+                binding.urlLabel.text = clipText
+                scheduleFetch(clipText, provider)
             }
         } catch (e: Exception) {
             Log.e("TrackDrop", "Error reading clipboard", e)
@@ -293,17 +253,19 @@ class MainActivity : AppCompatActivity() {
 
     private fun showLoadingUI() {
         runOnUiThread {
+            binding.urlLabel.text = "Fetching route..."
             binding.loadingBar.visibility = View.VISIBLE
             binding.errorText.visibility = View.GONE
             binding.tourCard.visibility = View.GONE
-            binding.btnOrganicMaps.visibility = View.GONE
             binding.btnShare.visibility = View.GONE
+            binding.favAppContainer.visibility = View.GONE
         }
     }
 
     private fun showSuccessUI(result: FetchResult) {
         runOnUiThread {
-            binding.urlField.tag = result
+            currentResult = result
+            binding.urlLabel.text = result.url
             binding.tourName.text = result.tour.name
             binding.tourStats.text = "%.1f km  ·  %d m up  ·  %d m down".format(
                 result.tour.distance / 1000, result.tour.up.toInt(), result.tour.down.toInt()
@@ -311,10 +273,9 @@ class MainActivity : AppCompatActivity() {
             binding.loadingBar.visibility = View.GONE
             binding.errorText.visibility = View.GONE
             binding.tourCard.visibility = View.VISIBLE
-            binding.btnOrganicMaps.visibility = View.VISIBLE
             binding.btnShare.visibility = View.VISIBLE
+            binding.favAppContainer.visibility = View.VISIBLE
             
-            // Draw the route shape!
             binding.routePreview.setPoints(result.points)
         }
     }
@@ -323,12 +284,12 @@ class MainActivity : AppCompatActivity() {
         runOnUiThread {
             binding.loadingBar.visibility = View.GONE
             binding.tourCard.visibility = View.GONE
-            binding.urlField.tag = null
+            currentResult = null
             binding.errorText.text = msg
             binding.errorText.visibility = View.VISIBLE
             
-            binding.btnOrganicMaps.visibility = View.GONE
             binding.btnShare.visibility = View.GONE
+            binding.favAppContainer.visibility = View.GONE
         }
     }
 
@@ -336,10 +297,10 @@ class MainActivity : AppCompatActivity() {
         binding.loadingBar.visibility = View.GONE
         binding.errorText.visibility = View.GONE
         binding.tourCard.visibility = View.GONE
-        binding.urlField.tag = null
-        
-        binding.btnOrganicMaps.visibility = View.GONE
+        currentResult = null
+        binding.urlLabel.text = ""
         binding.btnShare.visibility = View.GONE
+        binding.favAppContainer.visibility = View.GONE
     }
 
     // --- Pairing logic ---
@@ -354,10 +315,8 @@ class MainActivity : AppCompatActivity() {
 
     private fun setupPairingButton() {
         binding.btnPairBrowser.setOnClickListener {
-            // Check if we already have permission
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-                    // Permission is missing. Show explainer dialog FIRST.
                     AlertDialog.Builder(this)
                         .setTitle("Pair with PC")
                         .setMessage("To receive tracks from your PC, TrackDrop needs permission to show notifications when a link is sent.\n\nClick OK to continue to the permission request.")
@@ -366,11 +325,9 @@ class MainActivity : AppCompatActivity() {
                         }
                         .show()
                 } else {
-                    // We already have permission! Skip the dialog.
                     generatePairingCode()
                 }
             } else {
-                // Under Android 13, no permission needed. Skip the dialog.
                 generatePairingCode()
             }
         }
@@ -385,7 +342,6 @@ class MainActivity : AppCompatActivity() {
                 val token = task.result
                 Log.d("TrackDrop", "Got FCM token, sending to Cloud Function...")
                 
-                // Call the Cloud Function on a background thread
                 Thread {
                     try {
                         val url = URL("https://us-central1-trackdrop-ea99a.cloudfunctions.net/registerPairingCode")
@@ -429,27 +385,61 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
-    // --- HTML Builders ---
+    // --- Favorite App Picker ---
 
-    private fun buildSuccessHtml(routeName: String): String {
-        val safeName = routeName.replace("<", "&lt;").replace(">", "&gt;")
-        return "<div id='success' style='display:none;'><h2 style='color:#4F6814;'>Route received!</h2><p style='color:#666;font-size:14px;'>$safeName</p></div>" +
-                "<script>" +
-                "document.getElementById('loader').style.display='none';" +
-                "document.getElementById('success').style.display='block';" +
-                "setTimeout(function(){window.close();}, 1000);" +
-                "</script>"
+    private fun showAppPickerDialog() {
+        val apps = ShareService.getGpxApps(this)
+        if (apps.isEmpty()) {
+            showError("No GPX-capable apps installed.")
+            return
+        }
+
+        val adapter = object : ArrayAdapter<ResolveInfo>(this, android.R.layout.activity_list_item, android.R.id.text1, apps) {
+            override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
+                val view = super.getView(position, convertView, parent)
+                val item = getItem(position)!!
+                view.findViewById<android.widget.TextView>(android.R.id.text1).text = item.loadLabel(packageManager)
+                view.findViewById<android.widget.ImageView>(android.R.id.icon).setImageDrawable(item.loadIcon(packageManager))
+                view.setPadding(32, 24, 32, 24)
+                return view
+            }
+        }
+
+        val dialogView = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(40, 40, 40, 40)
+        }
+        val listView = ListView(this).apply {
+            this.adapter = adapter
+        }
+        dialogView.addView(listView)
+
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("Choose Favorite App")
+            .setView(dialogView)
+            .setNegativeButton("Cancel", null)
+            .create()
+
+        listView.setOnItemClickListener { _, _, position, _ ->
+            val selectedApp = apps[position]
+            favAppPackageName = selectedApp.activityInfo.packageName
+            getSharedPreferences("trackdrop_prefs", MODE_PRIVATE).edit().putString("fav_app_package", favAppPackageName).apply()
+            
+            updateFavAppButton(selectedApp.loadLabel(packageManager).toString())
+            dialog.dismiss()
+        }
+        dialog.show()
     }
 
-    private fun buildErrorHtml(errorMsg: String): String {
-        val safeError = errorMsg.replace("<", "&lt;").replace(">", "&gt;")
-        return "<div id='error' style='display:none;'><h2 style='color:#C62828;'>Failed to fetch route</h2>" +
-                "<p style='color:#666;font-size:14px;'>$safeError</p>" +
-                "<p style='font-size:12px;color:#999;'>Make sure you are on the final shared page, not the editor.</p></div>" +
-                "<script>" +
-                "document.getElementById('loader').style.display='none';" +
-                "document.getElementById('error').style.display='block';" +
-                "setTimeout(function(){window.close();}, 6000);" +
-                "</script>"
+    private fun updateFavAppButton(appName: String) {
+        if (favAppPackageName != null) {
+            binding.btnFavApp.text = "Open in $appName"
+            binding.btnFavAppConfig.visibility = View.VISIBLE
+            binding.dividerFavApp.visibility = View.VISIBLE // Show divider
+        } else {
+            binding.btnFavApp.text = "Pick Favorite App"
+            binding.btnFavAppConfig.visibility = View.GONE
+            binding.dividerFavApp.visibility = View.GONE // Hide divider
+        }
     }
 }
