@@ -48,7 +48,7 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
-        window.statusBarColor = Color.parseColor("#4F6814")
+        
         // Tell Android to use dark icons in the status bar because our app background is light
         WindowCompat.getInsetsController(window, binding.root).isAppearanceLightStatusBars = true
 
@@ -310,11 +310,14 @@ class MainActivity : AppCompatActivity() {
             generatePairingCode()
         } else {
             showError("Notifications must be enabled to receive tracks from your PC.")
+            binding.btnPairBrowser.isEnabled = true
         }
     }
 
     private fun setupPairingButton() {
         binding.btnPairBrowser.setOnClickListener {
+            binding.btnPairBrowser.isEnabled = false // Disable immediately to prevent spam
+            
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
                     AlertDialog.Builder(this)
@@ -322,6 +325,12 @@ class MainActivity : AppCompatActivity() {
                         .setMessage("To receive tracks from your PC, TrackDrop needs permission to show notifications when a link is sent.\n\nClick OK to continue to the permission request.")
                         .setPositiveButton("OK") { _, _ ->
                             requestNotificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        }
+                        .setNegativeButton("Cancel") { _, _ ->
+                            binding.btnPairBrowser.isEnabled = true // Re-enable on cancel
+                        }
+                        .setOnCancelListener {
+                            binding.btnPairBrowser.isEnabled = true // Re-enable if tapped outside
                         }
                         .show()
                 } else {
@@ -362,16 +371,25 @@ class MainActivity : AppCompatActivity() {
                             Log.d("TrackDrop", "Pairing code registered!")
                         } else {
                             Log.e("TrackDrop", "Failed to register code: $responseCode")
+                            runOnUiThread { 
+                                showError("Failed to register pairing code.") 
+                                binding.btnPairBrowser.isEnabled = true // Re-enable on failure
+                            }
                         }
                         conn.disconnect()
                     } catch (e: Exception) {
                         Log.e("TrackDrop", "Error registering code", e)
+                        runOnUiThread { 
+                            showError("Network error registering code.") 
+                            binding.btnPairBrowser.isEnabled = true // Re-enable on error
+                        }
                     }
                 }.start()
                 
             } else {
                 Log.e("TrackDrop", "Failed to get FCM token", task.exception)
                 showError("Failed to get FCM token.")
+                binding.btnPairBrowser.isEnabled = true // Re-enable on failure
             }
         }
     }
@@ -381,7 +399,12 @@ class MainActivity : AppCompatActivity() {
         AlertDialog.Builder(this)
             .setTitle("Pair with PC")
             .setMessage("Open the TrackDrop extension in your browser and enter this code:\n\n$formattedCode")
-            .setPositiveButton("Done", null)
+            .setPositiveButton("Done") { _, _ ->
+                binding.btnPairBrowser.isEnabled = true // Re-enable when user clicks Done
+            }
+            .setOnCancelListener {
+                binding.btnPairBrowser.isEnabled = true // Re-enable if tapped outside
+            }
             .show()
     }
 
