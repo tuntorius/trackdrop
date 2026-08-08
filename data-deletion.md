@@ -6,4 +6,4 @@ TrackDrop does not collect personal information or maintain user accounts. If yo
 
 2. Uninstalling the TrackDrop app from your device, which clears all local cache and tokens.
 
-If you have any questions or wish to manually request data deletion, please contact us at: your-email@gmail.com
+If you have any questions or wish to manually request data deletion, please contact us at: tuntori-dev@gmail.com
