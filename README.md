@@ -8,7 +8,7 @@
 
 TrackDrop is a lightweight, native Kotlin Android app that removes the friction of getting a GPX track from a route planner into your favorite map or sports app. Instead of exporting a file, hunting it down in your file manager, and tapping through import dialogs, you just **Share → TrackDrop → pick an app**. Done.
 
-It also ships with a companion browser extension so you can send a route straight from your PC's browser to your phone via a push notification.
+There is also a companion browser extension so you can send a route straight from your PC's browser to your phone via a push notification.
 
 ---
 
@@ -37,7 +37,7 @@ Komoot / RideWithGPS  →  Share  →  TrackDrop  →  pick a GPX app  →  done
 1. In Komoot or RideWithGPS, tap **Share**.
 2. Select **TrackDrop** from the share sheet.
 3. TrackDrop fetches the route, shows a preview (name, distance, elevation, and a mini map).
-4. Tap **Share** and pick any GPX-capable app — or tap your **favorite app** for a one-tap drop.
+4. Tap on any of the listed GPX-capable apps for a one-tap drop.
 
 Because the share comes straight from the planner, private routes "just work": Komoot and RideWithGPS automatically append a share token that grants access to the track.
 
@@ -65,7 +65,7 @@ Browser (Komoot/RideWithGPS)  →  TrackDrop extension  →  Firebase  →  push
 
 - **Share-sheet intake** — registers as a share target for `text/plain`, so it appears wherever you share a route link.
 - **Route preview** — tour name, distance, elevation gain/loss, and an inline route sketch before you send it.
-- **Favorite app** — set a default GPX app for one-tap drops; reconfigure anytime.
+
 - **GPX 1.1 output** — generates standards-compliant GPX with metadata and elevation.
 - **PC → phone push** — pair a browser extension via a one-time 6-digit code and send routes over Firebase Cloud Messaging.
 - **Lightweight & private** — native Kotlin, no ads, no analytics, no tracking. Only `INTERNET` and `POST_NOTIFICATIONS` permissions.
@@ -79,7 +79,7 @@ Browser (Komoot/RideWithGPS)  →  TrackDrop extension  →  Firebase  →  push
 | **Komoot** | ✅ | ✅ (share token via share sheet) |
 | **RideWithGPS** | ✅ | ✅ (privacy code / share link) |
 
-More providers (Strava, AllTrails, etc.) may be added in the future.
+More providers may be added in the future.
 
 ---
 
@@ -119,8 +119,6 @@ More providers (Strava, AllTrails, etc.) may be added in the future.
 ├── data-deletion.md
 └── LICENSE
 ```
-
-A deeper, implementation-focused breakdown lives in [`PROJECT_DOCUMENTATION.md`](PROJECT_DOCUMENTATION.md).
 
 ---
 
