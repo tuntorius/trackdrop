@@ -3,6 +3,8 @@ package com.tuntori.trackdrop
 import android.net.Uri
 
 object RideWithGpsService : RouteProvider {
+    override val sourceAppPackage: String? = "com.ridewithgps.mobile"
+
     override fun isValidUrl(url: String): Boolean {
         return url.contains("ridewithgps.com/routes/") || url.contains("ridewithgps.com/trips/")
     }

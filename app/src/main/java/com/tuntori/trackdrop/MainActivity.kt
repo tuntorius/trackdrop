@@ -188,8 +188,10 @@ class MainActivity : AppCompatActivity() {
 
     private fun populateAppGrid(result: FetchResult) {
         lifecycleScope.launch {
+            val sourcePackage = ProviderRegistry.getProviderForUrl(result.url)?.sourceAppPackage
             val apps = withContext(Dispatchers.IO) {
                 ShareService.getGpxApps(this@MainActivity, result.gpx, result.filename)
+                    .filter { it.packageName != sourcePackage }
             }
 
             binding.appGrid.removeAllViews()

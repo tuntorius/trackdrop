@@ -13,6 +13,13 @@ class ApiException(message: String) : Exception(message)
 interface RouteProvider {
     fun isValidUrl(url: String): Boolean
     fun fetchTour(url: String): FetchResult
+
+    /**
+     * Package name of this provider's Android app, or null if it has no mobile app.
+     * Used to filter the source provider's own app out of the "Drop to…" grid,
+     * since dropping a route back into the same app would just duplicate it.
+     */
+    val sourceAppPackage: String?
 }
 
 // --- Registry ---

@@ -3,6 +3,8 @@ package com.tuntori.trackdrop
 import android.net.Uri
 
 object KomootService : RouteProvider {
+    override val sourceAppPackage: String? = "de.komoot.android"
+
     override fun isValidUrl(url: String): Boolean {
         return url.contains("komoot.") && url.contains("/tour/")
     }
