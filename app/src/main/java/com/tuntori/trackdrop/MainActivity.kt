@@ -2,13 +2,15 @@ package com.tuntori.trackdrop
 
 import android.Manifest
 import android.app.AlertDialog
-import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
+import android.view.LayoutInflater
 import android.view.View
+import android.widget.ImageView
+import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
@@ -32,7 +34,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
     private var isFetching = false
     private var currentResult: FetchResult? = null
-    private var favAppPackageName: String? = null
     private var fetchJob: Job? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -50,35 +51,8 @@ class MainActivity : AppCompatActivity() {
             insets
         }
 
-        // Load saved favorite app
-        favAppPackageName = getSharedPreferences("trackdrop_prefs", MODE_PRIVATE)
-            .getString("fav_app_package", null)
-
-        setupButtons()
         setupPairingButton()
         handleShareIntent(intent)
-    }
-
-    // --- Button setup ---
-
-    private fun setupButtons() {
-        binding.btnFavApp.setOnClickListener {
-            if (favAppPackageName != null && currentResult != null) {
-                ShareService.openGpxInPackage(this, currentResult!!.gpx, currentResult!!.filename, favAppPackageName!!)
-            } else {
-                showAppPickerDialog()
-            }
-        }
-
-        binding.btnFavAppConfig.setOnClickListener {
-            showAppPickerDialog()
-        }
-
-        binding.btnShare.setOnClickListener {
-            currentResult?.let {
-                ShareService.openGpx(this, it.gpx, it.filename, false)
-            }
-        }
     }
 
     // --- Share / clipboard intake ---
@@ -108,18 +82,6 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-
-        // Restore favorite app name if it was already selected
-        if (favAppPackageName != null) {
-            try {
-                val pm = packageManager
-                val label = pm.getApplicationLabel(pm.getApplicationInfo(favAppPackageName!!, 0))
-                updateFavAppButton(label.toString())
-            } catch (e: Exception) {
-                favAppPackageName = null
-                updateFavAppButton("")
-            }
-        }
 
         ForegroundManager.listener = { result ->
             if (result != null) {
@@ -186,8 +148,7 @@ class MainActivity : AppCompatActivity() {
             binding.loadingBar.visibility = View.VISIBLE
             binding.errorText.visibility = View.GONE
             binding.tourCard.visibility = View.GONE
-            binding.btnShare.visibility = View.GONE
-            binding.favAppContainer.visibility = View.GONE
+            binding.appGridContainer.visibility = View.GONE
         }
     }
 
@@ -202,10 +163,10 @@ class MainActivity : AppCompatActivity() {
             binding.loadingBar.visibility = View.GONE
             binding.errorText.visibility = View.GONE
             binding.tourCard.visibility = View.VISIBLE
-            binding.btnShare.visibility = View.VISIBLE
-            binding.favAppContainer.visibility = View.VISIBLE
 
             binding.routePreview.setPoints(result.points)
+
+            populateAppGrid(result)
         }
     }
 
@@ -217,8 +178,42 @@ class MainActivity : AppCompatActivity() {
             binding.errorText.text = msg
             binding.errorText.visibility = View.VISIBLE
 
-            binding.btnShare.visibility = View.GONE
-            binding.favAppContainer.visibility = View.GONE
+            binding.appGridContainer.visibility = View.GONE
+        }
+    }
+
+    // --- App grid ---
+
+    private fun populateAppGrid(result: FetchResult) {
+        lifecycleScope.launch {
+            val apps = withContext(Dispatchers.IO) {
+                ShareService.getGpxApps(this@MainActivity, result.gpx, result.filename)
+            }
+
+            binding.appGrid.removeAllViews()
+
+            if (apps.isEmpty()) {
+                binding.appGridContainer.visibility = View.GONE
+                return@launch
+            }
+
+            val inflater = LayoutInflater.from(this@MainActivity)
+            for (app in apps) {
+                val itemView = inflater.inflate(R.layout.item_app_button, binding.appGrid, false)
+                itemView.findViewById<ImageView>(R.id.appIcon).setImageDrawable(app.icon)
+                itemView.findViewById<TextView>(R.id.appName).text = app.name
+                itemView.setOnClickListener {
+                    ShareService.openGpxInPackage(
+                        this@MainActivity,
+                        result.gpx,
+                        result.filename,
+                        app.packageName
+                    )
+                }
+                binding.appGrid.addView(itemView)
+            }
+
+            binding.appGridContainer.visibility = View.VISIBLE
         }
     }
 
@@ -299,36 +294,5 @@ class MainActivity : AppCompatActivity() {
                 binding.btnPairBrowser.isEnabled = true // Re-enable if tapped outside
             }
             .show()
-    }
-
-    // --- Favorite App ---
-
-    private fun showAppPickerDialog() {
-        AppPickerDialog.show(
-            context = this,
-            onAppSelected = { packageName, appLabel ->
-                favAppPackageName = packageName
-                getSharedPreferences("trackdrop_prefs", MODE_PRIVATE)
-                    .edit()
-                    .putString("fav_app_package", packageName)
-                    .apply()
-                updateFavAppButton(appLabel)
-            },
-            onNoApps = {
-                showError("No GPX-capable apps installed.")
-            }
-        )
-    }
-
-    private fun updateFavAppButton(appName: String) {
-        if (favAppPackageName != null) {
-            binding.btnFavApp.text = "Open in $appName"
-            binding.btnFavAppConfig.visibility = View.VISIBLE
-            binding.dividerFavApp.visibility = View.VISIBLE // Show divider
-        } else {
-            binding.btnFavApp.text = "Pick Favorite App"
-            binding.btnFavAppConfig.visibility = View.GONE
-            binding.dividerFavApp.visibility = View.GONE // Hide divider
-        }
     }
 }

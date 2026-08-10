@@ -4,7 +4,6 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     
     <queries>
-        <package android:name="app.organicmaps" />
         <intent>
             <action android:name="android.intent.action.VIEW" />
             <data android:mimeType="application/gpx+xml" />

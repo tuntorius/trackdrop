@@ -3,50 +3,50 @@ package com.tuntori.trackdrop
 import android.content.ClipData
 import android.content.Context
 import android.content.Intent
+import android.graphics.drawable.Drawable
 import android.content.pm.PackageManager
 import androidx.core.content.FileProvider
 import android.content.pm.ResolveInfo
 import java.io.File
 
+data class GpxApp(
+    val packageName: String,
+    val name: CharSequence,
+    val icon: Drawable,
+    val resolveInfo: ResolveInfo
+)
+
 object ShareService {
-    fun isPackageInstalled(context: Context, packageName: String): Boolean {
-        return try {
-            context.packageManager.getPackageInfo(packageName, 0)
-            true
-        } catch (e: PackageManager.NameNotFoundException) {
-            false
-        }
-    }
+    fun getGpxApps(context: Context, gpx: String, filename: String): List<GpxApp> {
+        val cacheDir = context.cacheDir
+        val file = File(cacheDir, filename)
+        file.writeText(gpx)
+        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
 
-    fun getGpxApps(context: Context): List<ResolveInfo> {
-        val mimeTypes = listOf("application/gpx+xml", "application/xml", "text/xml")
-        val appMap = mutableMapOf<String, ResolveInfo>()
-        
-        // Filter out system sharing apps
-        val excludedPackages = listOf(
-            context.packageName,
-            "com.android.bluetooth",
-            "com.google.android.gms", // Quick Share
-            "com.samsung.android.app.sharelive" // Samsung Quick Share
+        val pm = context.packageManager
+
+        val intent = Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(uri, "application/gpx+xml")
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            clipData = ClipData.newRawUri("gpx", uri)
+        }
+
+        return pm.queryIntentActivities(
+            intent,
+            PackageManager.MATCH_DEFAULT_ONLY
         )
+            .filter { it.activityInfo.packageName != context.packageName }
+            .distinctBy { it.activityInfo.packageName }
+            .map {
+                val appInfo = it.activityInfo.applicationInfo
 
-        for (mimeType in mimeTypes) {
-            val viewIntent = Intent(Intent.ACTION_VIEW).apply { type = mimeType }
-            context.packageManager.queryIntentActivities(viewIntent, 0).forEach { info ->
-                if (info.activityInfo.packageName !in excludedPackages) {
-                    appMap[info.activityInfo.packageName] = info
-                }
+                GpxApp(
+                    packageName = appInfo.packageName,
+                    name = appInfo.loadLabel(pm),
+                    icon = appInfo.loadIcon(pm),
+                    resolveInfo = it
+                )
             }
-
-            val sendIntent = Intent(Intent.ACTION_SEND).apply { type = mimeType }
-            context.packageManager.queryIntentActivities(sendIntent, 0).forEach { info ->
-                if (info.activityInfo.packageName !in excludedPackages) {
-                    appMap[info.activityInfo.packageName] = info
-                }
-            }
-        }
-
-        return appMap.values.toList()
     }
 
     fun openGpxInPackage(context: Context, gpx: String, filename: String, packageName: String) {
@@ -59,27 +59,8 @@ object ShareService {
             setDataAndType(uri, "application/gpx+xml")
             flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK
             clipData = ClipData.newRawUri("gpx", uri)
-            setPackage(packageName) // Force it to open the specific favorite app
+            setPackage(packageName)
         }
         context.startActivity(intent)
-    }
-
-    fun openGpx(context: Context, gpx: String, filename: String, focused: Boolean) {
-        val cacheDir = context.cacheDir
-        val file = File(cacheDir, filename)
-        file.writeText(gpx)
-        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
-
-        val baseIntent = Intent(Intent.ACTION_VIEW).apply {
-            setDataAndType(uri, "application/gpx+xml")
-            flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK
-            clipData = ClipData.newRawUri("gpx", uri)
-            if (focused) setPackage("app.organicmaps")
-        }
-
-        val launchIntent = if (focused) baseIntent else Intent.createChooser(baseIntent, "Open GPX with…").apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
-        }
-        context.startActivity(launchIntent)
     }
 }
