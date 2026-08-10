@@ -6,6 +6,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
@@ -13,6 +14,7 @@ import android.widget.ImageView
 import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
@@ -223,7 +225,12 @@ class MainActivity : AppCompatActivity() {
         if (isGranted) {
             generatePairingCode()
         } else {
-            showError("Notifications must be enabled to receive tracks from your PC.")
+            hidePairingProgress()
+            if (!ActivityCompat.shouldShowRequestPermissionRationale(this, Manifest.permission.POST_NOTIFICATIONS)) {
+                showNotificationSettingsDialog()
+            } else {
+                showError("Notifications must be enabled to receive tracks from your PC.")
+            }
             binding.btnPairBrowser.isEnabled = true
         }
     }
@@ -241,9 +248,11 @@ class MainActivity : AppCompatActivity() {
                             requestNotificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
                         }
                         .setNegativeButton("Cancel") { _, _ ->
+                            hidePairingProgress()
                             binding.btnPairBrowser.isEnabled = true // Re-enable on cancel
                         }
                         .setOnCancelListener {
+                            hidePairingProgress()
                             binding.btnPairBrowser.isEnabled = true // Re-enable if tapped outside
                         }
                         .show()
@@ -260,22 +269,26 @@ class MainActivity : AppCompatActivity() {
         val code = (100000..999999).random().toString()
         Log.d("TrackDrop", "Generated pairing code: $code")
 
+        showPairingProgress()
+
         FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
             if (task.isSuccessful) {
                 val token = task.result
-                Thread {
-                    val error = PairingApi.registerPairingCode(code, token)
-                    runOnUiThread {
-                        if (error == null) {
-                            showPairingCodeDialog(code)
-                        } else {
-                            showError(error)
-                            binding.btnPairBrowser.isEnabled = true
-                        }
+                lifecycleScope.launch {
+                    val error = withContext(Dispatchers.IO) {
+                        PairingApi.registerPairingCode(code, token)
                     }
-                }.start()
+                    hidePairingProgress()
+                    if (error == null) {
+                        showPairingCodeDialog(code)
+                    } else {
+                        showError(error)
+                        binding.btnPairBrowser.isEnabled = true
+                    }
+                }
             } else {
                 Log.e("TrackDrop", "Failed to get FCM token", task.exception)
+                hidePairingProgress()
                 showError("Failed to get FCM token.")
                 binding.btnPairBrowser.isEnabled = true
             }
@@ -293,6 +306,27 @@ class MainActivity : AppCompatActivity() {
             .setOnCancelListener {
                 binding.btnPairBrowser.isEnabled = true // Re-enable if tapped outside
             }
+            .show()
+    }
+
+    private fun showPairingProgress() {
+        binding.pairingProgressContainer.visibility = View.VISIBLE
+    }
+
+    private fun hidePairingProgress() {
+        binding.pairingProgressContainer.visibility = View.GONE
+    }
+
+    private fun showNotificationSettingsDialog() {
+        AlertDialog.Builder(this)
+            .setTitle("Notifications are blocked")
+            .setMessage("TrackDrop needs notification permission to receive tracks from your PC, but it's currently blocked. Please enable it in Settings.")
+            .setPositiveButton("Open Settings") { _, _ ->
+                val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                    .putExtra(Settings.EXTRA_APP_PACKAGE, packageName)
+                startActivity(intent)
+            }
+            .setNegativeButton("Cancel", null)
             .show()
     }
 }

@@ -176,12 +176,36 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="20dp"
-            android:layout_marginBottom="16dp"
             android:background="@android:color/transparent"
             android:text="Pair with PC Browser"
             android:textColor="#4F6814"
             android:textAllCaps="false"
             android:textSize="13sp" />
+
+        <!-- Pairing Progress -->
+        <LinearLayout
+            android:id="@+id/pairingProgressContainer"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:gravity="center"
+            android:orientation="horizontal"
+            android:visibility="gone">
+
+            <ProgressBar
+                android:id="@+id/pairingProgressBar"
+                style="?android:attr/progressBarStyleSmall"
+                android:layout_width="18dp"
+                android:layout_height="18dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:text="Generating code…"
+                android:textSize="13sp"
+                android:textColor="#4F6814" />
+        </LinearLayout>
 
     </LinearLayout>
 </ScrollView>
