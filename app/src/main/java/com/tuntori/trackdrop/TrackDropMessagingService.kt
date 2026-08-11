@@ -14,7 +14,7 @@ class TrackDropMessagingService : FirebaseMessagingService() {
 
     companion object {
         const val CHANNEL_ID = "trackdrop_routes"
-        const val CACHE_FILE = TrackCache.CACHE_FILE
+        const val NOTIFICATION_ID = 1001
     }
 
     override fun onMessageReceived(remoteMessage: RemoteMessage) {
@@ -24,34 +24,29 @@ class TrackDropMessagingService : FirebaseMessagingService() {
             if (ForegroundManager.listener != null) {
                 ForegroundManager.listener?.invoke(null)
             } else {
-                showNotification("Error", "Unsupported URL format.")
+                showNotification("Error", "Unsupported URL format.", null)
             }
             return
         }
 
-        try {
-            val result = provider.fetchTour(url)
-
-            // Check if the app is in the foreground!
-            if (ForegroundManager.listener != null) {
-                // App is open. Send data directly to the UI.
+        // Check if the app is in the foreground!
+        if (ForegroundManager.listener != null) {
+            // App is open. Fetch and send data directly to the UI.
+            try {
+                val result = provider.fetchTour(url)
                 ForegroundManager.listener?.invoke(result)
-            } else {
-                // App is in background. Serialize the whole result to a JSON file.
-                TrackCache.save(this, result, url)
-
-                showNotification("Track received: ${result.tour.name}", "Tap to open.")
+            } catch (e: Exception) {
+                ForegroundManager.listener?.invoke(null)
             }
-        } catch (e: Exception) {
-            if (ForegroundManager.listener != null) {
-                ForegroundManager.listener?.invoke(null) // Tell UI it failed
-            } else {
-                showNotification("Failed to fetch track", e.message ?: "Unknown error")
-            }
+        } else {
+            // App is in background. Don't fetch here — just show a notification
+            // carrying the URL. The route will be fetched when the user taps it.
+            // This avoids stale cached data and battery waste.
+            showNotification("New track received from PC", "Tap to open.", url)
         }
     }
 
-    private fun showNotification(title: String, message: String) {
+    private fun showNotification(title: String, message: String, url: String?) {
         val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -62,11 +57,14 @@ class TrackDropMessagingService : FirebaseMessagingService() {
         val intent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
             putExtra("FROM_NOTIFICATION", true)
+            if (url != null) {
+                putExtra("NOTIFICATION_URL", url)
+            }
         }
 
         val pendingIntent = PendingIntent.getActivity(
             this, 0, intent,
-            PendingIntent.FLAG_ONE_SHOT or PendingIntent.FLAG_IMMUTABLE
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
@@ -77,7 +75,7 @@ class TrackDropMessagingService : FirebaseMessagingService() {
             .setContentIntent(pendingIntent)
             .build()
 
-        notificationManager.notify(System.currentTimeMillis().toInt(), notification)
+        notificationManager.notify(NOTIFICATION_ID, notification)
     }
 
     override fun onNewToken(token: String) {

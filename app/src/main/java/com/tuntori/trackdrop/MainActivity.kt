@@ -94,18 +94,24 @@ class MainActivity : AppCompatActivity() {
         }
 
         if (intent.getBooleanExtra("FROM_NOTIFICATION", false)) {
-            loadCachedTrack()
+            val url = intent.getStringExtra("NOTIFICATION_URL")
             intent.removeExtra("FROM_NOTIFICATION")
+            intent.removeExtra("NOTIFICATION_URL")
+            if (url != null) {
+                val provider = ProviderRegistry.getProviderForUrl(url)
+                if (provider != null) {
+                    binding.urlLabel.text = url
+                    scheduleFetch(url, provider)
+                } else {
+                    showError("Unsupported URL format.")
+                }
+            }
         }
     }
 
     override fun onPause() {
         super.onPause()
         ForegroundManager.listener = null
-    }
-
-    private fun loadCachedTrack() {
-        TrackCache.load(this)?.let { showSuccessUI(it) }
     }
 
     private fun handleForegroundPush(result: FetchResult) {
