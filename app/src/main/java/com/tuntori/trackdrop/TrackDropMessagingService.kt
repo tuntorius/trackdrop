@@ -15,6 +15,7 @@ class TrackDropMessagingService : FirebaseMessagingService() {
     companion object {
         const val CHANNEL_ID = "trackdrop_routes"
         const val NOTIFICATION_ID = 1001
+        const val PENDING_URL_KEY = "pending_notification_url"
     }
 
     override fun onMessageReceived(remoteMessage: RemoteMessage) {
@@ -40,8 +41,15 @@ class TrackDropMessagingService : FirebaseMessagingService() {
             }
         } else {
             // App is in background. Don't fetch here — just show a notification
-            // carrying the URL. The route will be fetched when the user taps it.
+            // carrying the URL. The route will be fetched when the user taps it
+            // or when the app returns to the foreground (e.g. screen was off).
             // This avoids stale cached data and battery waste.
+            // Store the URL so MainActivity can auto-consume it if the app
+            // comes to the foreground without a notification tap.
+            getSharedPreferences("trackdrop_prefs", MODE_PRIVATE)
+                .edit()
+                .putString(PENDING_URL_KEY, url)
+                .apply()
             showNotification("New track received from PC", "Tap to open.", url)
         }
     }

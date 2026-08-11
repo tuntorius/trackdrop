@@ -2,6 +2,8 @@ package com.tuntori.trackdrop
 
 import android.Manifest
 import android.app.AlertDialog
+import android.app.NotificationManager
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
@@ -93,18 +95,38 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        if (intent.getBooleanExtra("FROM_NOTIFICATION", false)) {
-            val url = intent.getStringExtra("NOTIFICATION_URL")
+        val fromNotification = intent.getBooleanExtra("FROM_NOTIFICATION", false)
+        val isShareIntent = intent.action == Intent.ACTION_SEND
+
+        // Determine the URL to fetch:
+        // 1. From notification tap (intent has NOTIFICATION_URL)
+        // 2. From pending notification in SharedPreferences (screen was off,
+        //    app is in foreground, but onPause cleared the listener)
+        val url = if (fromNotification) {
+            intent.getStringExtra("NOTIFICATION_URL")
+        } else if (!isShareIntent) {
+            getPendingNotificationUrl()
+        } else {
+            null
+        }
+
+        if (fromNotification) {
             intent.removeExtra("FROM_NOTIFICATION")
             intent.removeExtra("NOTIFICATION_URL")
-            if (url != null) {
-                val provider = ProviderRegistry.getProviderForUrl(url)
-                if (provider != null) {
-                    binding.urlLabel.text = url
-                    scheduleFetch(url, provider)
-                } else {
-                    showError("Unsupported URL format.")
-                }
+        }
+
+        if (url != null) {
+            // Clear the pending URL and cancel the notification, whether the
+            // user tapped it or we're auto-consuming it.
+            clearPendingNotificationUrl()
+            cancelNotification()
+
+            val provider = ProviderRegistry.getProviderForUrl(url)
+            if (provider != null) {
+                binding.urlLabel.text = url
+                scheduleFetch(url, provider)
+            } else {
+                showError("Unsupported URL format.")
             }
         }
     }
@@ -118,6 +140,23 @@ class MainActivity : AppCompatActivity() {
         runOnUiThread {
             showSuccessUI(result)
         }
+    }
+
+    private fun getPendingNotificationUrl(): String? {
+        return getSharedPreferences("trackdrop_prefs", Context.MODE_PRIVATE)
+            .getString(TrackDropMessagingService.PENDING_URL_KEY, null)
+    }
+
+    private fun clearPendingNotificationUrl() {
+        getSharedPreferences("trackdrop_prefs", Context.MODE_PRIVATE)
+            .edit()
+            .remove(TrackDropMessagingService.PENDING_URL_KEY)
+            .apply()
+    }
+
+    private fun cancelNotification() {
+        val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        nm.cancel(TrackDropMessagingService.NOTIFICATION_ID)
     }
 
     // --- Fetching ---
