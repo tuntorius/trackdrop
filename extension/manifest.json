@@ -2,7 +2,8 @@
   "manifest_version": 3,
   "name": "TrackDrop",
   "version": "1.0",
-  "permissions": ["activeTab", "storage"],
+  "description": "Send Komoot and RideWithGPS routes to your TrackDrop app on your phone via push notification.",
+  "permissions": ["activeTab", "storage", "scripting", "cookies"],
   "host_permissions": [
     "https://sendtrack-fptlqp3r2a-uc.a.run.app/*",
     "https://api.komoot.de/*",
@@ -14,6 +15,7 @@
     "128": "icons/icon128.png"
   },
   "action": {
-    "default_popup": "popup.html"
+    "default_popup": "popup.html",
+    "default_title": "TrackDrop"
   }
 }

@@ -7,7 +7,198 @@ const statusDiv = document.getElementById('status');
 const sendBtn = document.getElementById('sendBtn');
 const warningText = document.getElementById('warningText');
 
+// Will hold the URL we actually send to the phone. Defaults to the active tab URL,
+// but if we extract a Komoot share_token we rewrite it to include ?share_token=...
 let currentTabUrl = null;
+let sendUrl = null;
+
+// ---------------------------------------------------------------------------
+// KOMOOT SHARE-TOKEN EXTRACTION
+// ---------------------------------------------------------------------------
+//
+// Komoot tour pages do NOT put ?share_token=... in the URL bar. The token only
+// lives inside the page's DOM once Komoot's own "Share" dialog has been opened
+// (or, in some flows, has been pre-rendered). When logged in, the page's React
+// app fetches the token from /v007/tours/{id}/share_token and renders it into
+// <input data-test-id="share-link-url" value="...?share_token=..."> elements.
+//
+// We try two strategies, in order:
+//
+//   1) DOM scrape (preferred) — read it straight out of the Komoot UI inputs.
+//      Fast, requires no extra permissions, and uses Komoot's own auth flow.
+//
+//   2) API fallback — read the koa_at session cookie, pull out the access
+//      token, and call Komoot's /v007/tours/{id}/share_token endpoint
+//      ourselves with Authorization: Bearer <at>. This is exactly what
+//      Komoot's own frontend does (see main.js: w = async e => { ... }).
+//
+// Either way, the result is appended to the URL we send to the phone, so the
+// phone app can fetch the route via api.komoot.de just like the popup does
+// for validation.
+// ---------------------------------------------------------------------------
+
+/**
+ * Strategy 1: read the share_token out of Komoot's own share-dialog inputs
+ * by injecting a tiny function into the page. Returns the token string or null.
+ *
+ * Injected function logic:
+ *   - Query all <input data-test-id="share-link-url"> (Komoot renders 1 per
+ *     share type — tour link, embed, invite links, etc.)
+ *   - Pass 1: prefer an input whose value is a /tour/{id} URL (the "regular"
+ *     share link), not an /invite-tour/ URL (which uses a different, invite-
+ *     specific token called `share_token_invite`).
+ *   - Pass 2: fall back to ANY input whose value contains share_token.
+ *   - Pass 3: last-resort — scan the raw HTML for share_token=... .
+ */
+async function extractKomootShareTokenFromDOM(tabId) {
+  try {
+    const [result] = await chrome.scripting.executeScript({
+      target: { tabId },
+      func: () => {
+        const inputs = document.querySelectorAll('input[data-test-id="share-link-url"]');
+
+        // Pass 1: prefer /tour/{id} share links (not /invite-tour/...)
+        for (const inp of Array.from(inputs)) {
+          const val = inp.value || '';
+          if (!val) continue;
+          try {
+            const u = new URL(val);
+            const tok = u.searchParams.get('share_token');
+            if (tok && tok.length > 10 && /^\/tour\/\d+/.test(u.pathname)) {
+              return { token: tok, source: 'input[tour-url]', fullUrl: val };
+            }
+          } catch (_) {}
+        }
+        // Pass 2: any share-link-url input with a share_token
+        for (const inp of Array.from(inputs)) {
+          const val = inp.value || '';
+          if (!val) continue;
+          try {
+            const u = new URL(val);
+            const tok = u.searchParams.get('share_token');
+            if (tok && tok.length > 10) {
+              return { token: tok, source: 'input[any]', fullUrl: val };
+            }
+          } catch (_) {}
+        }
+        // Pass 3: last-resort scan of the raw HTML
+        const html = document.documentElement.outerHTML;
+        const m = html.match(/share_token=([A-Za-z0-9_-]{20,})/);
+        if (m) return { token: m[1], source: 'html-scan', fullUrl: null };
+        return null;
+      },
+    });
+    return result?.result || null;
+  } catch (err) {
+    // Most common cause: missing host permission for the active tab.
+    console.warn('[TrackDrop] DOM scrape failed:', err);
+    return null;
+  }
+}
+
+/**
+ * Strategy 2: call Komoot's own share_token API with the user's session token.
+ * Mirrors exactly what Komoot's frontend does in main.js (function `w`):
+ *
+ *   GET  /v007/tours/{id}/share_token?format=v2&token_name=share
+ *   -> 404 ? POST /v007/tours/{id}/share_token?format=v2&token_name=share
+ *
+ * The auth token is parsed out of the koa_at cookie, which Komoot sets on
+ * www.komoot.com in the format `${userId}|${accessToken}|${accessExp}`.
+ * Komoot's frontend sends the accessToken as `Authorization: Bearer <at>`.
+ */
+async function fetchKomootShareTokenViaApi(tourId) {
+  // 1. Read Komoot's session cookie. chrome.cookies needs `cookies` permission
+  //    and host permission for *.komoot.com.
+  let koaAtValue = null;
+  try {
+    const cookie = await chrome.cookies.get({
+      url: 'https://www.komoot.com',
+      name: 'koa_at',
+    });
+    koaAtValue = cookie?.value || null;
+  } catch (err) {
+    console.warn('[TrackDrop] Could not read koa_at cookie:', err);
+    return null;
+  }
+  if (!koaAtValue) {
+    console.warn('[TrackDrop] koa_at cookie not found — user is probably not logged in.');
+    return null;
+  }
+
+  // 2. Parse `${userId}|${accessToken}|${accessExp}`.
+  // Be defensive: any of the three segments could theoretically contain '|'.
+  // Komoot uses UUID-like / numeric IDs and base64-ish tokens, so splitting
+  // on '|' is safe in practice.
+  const parts = koaAtValue.split('|');
+  if (parts.length < 2) {
+    console.warn('[TrackDrop] koa_at cookie has unexpected shape:', koaAtValue.slice(0, 20));
+    return null;
+  }
+  const accessToken = parts[1];
+  if (!accessToken || accessToken.length < 10) {
+    console.warn('[TrackDrop] accessToken segment looks empty/invalid.');
+    return null;
+  }
+
+  const apiUrl = `https://api.komoot.de/v007/tours/${tourId}/share_token`;
+  const params = new URLSearchParams({ format: 'v2', token_name: 'share' });
+  const headers = {
+    'Accept': 'application/hal+json, application/json; q=0.8',
+    'Content-Type': 'application/json',
+    'Accept-Language': navigator.language || 'en',
+    'Authorization': `Bearer ${accessToken}`,
+  };
+
+  // 3. Try GET first.
+  try {
+    const r = await fetch(`${apiUrl}?${params.toString()}`, {
+      method: 'GET',
+      headers,
+    });
+    if (r.ok) {
+      const data = await r.json().catch(() => null);
+      const tok = data?.token;
+      if (typeof tok === 'string' && tok.length > 0) {
+        return { token: tok, source: 'api-get', fullUrl: null };
+      }
+    } else if (r.status !== 404) {
+      // Anything other than 404 means "you don't have permission" or similar;
+      // don't bother POSTing in that case.
+      console.warn(`[TrackDrop] share_token GET returned ${r.status}`);
+      return null;
+    }
+    // 404 → token doesn't exist yet; fall through to POST and create it.
+  } catch (err) {
+    console.warn('[TrackDrop] share_token GET threw:', err);
+    return null;
+  }
+
+  // 4. Token doesn't exist yet — POST to create it.
+  try {
+    const r = await fetch(`${apiUrl}?${params.toString()}`, {
+      method: 'POST',
+      headers,
+      body: null,
+    });
+    if (r.ok) {
+      const data = await r.json().catch(() => null);
+      const tok = data?.token;
+      if (typeof tok === 'string' && tok.length > 0) {
+        return { token: tok, source: 'api-post', fullUrl: null };
+      }
+    } else {
+      console.warn(`[TrackDrop] share_token POST returned ${r.status}`);
+    }
+  } catch (err) {
+    console.warn('[TrackDrop] share_token POST threw:', err);
+  }
+  return null;
+}
+
+// ---------------------------------------------------------------------------
+// POPUP BOOT
+// ---------------------------------------------------------------------------
 
 // Check if already paired on load
 chrome.storage.local.get(['fcmToken'], (result) => {
@@ -34,6 +225,7 @@ async function validateCurrentTab() {
   chrome.tabs.query({active: true, currentWindow: true}, async (tabs) => {
     if (!tabs[0]) return;
     currentTabUrl = tabs[0].url;
+    sendUrl = currentTabUrl; // default: send the URL exactly as it is in the bar
     
     const isKomoot = currentTabUrl.includes("komoot.com/tour/");
     // Accept both routes and trips
@@ -73,13 +265,45 @@ async function validateCurrentTab() {
         if (!tourMatch) throw new Error("Invalid Komoot URL.");
         
         const tourId = tourMatch[1];
-        const shareToken = tokenMatch ? tokenMatch[1] : null;
+        let shareToken = tokenMatch ? tokenMatch[1] : null;
         
+        // ---------------------------------------------------------------
+        // AUTO-EXTRACT SHARE TOKEN if it's missing from the URL.
+        // (Komoot only puts ?share_token= in the URL if the user opened
+        // a shared link — for normal in-app browsing, we have to fetch
+        // it ourselves.)
+        // ---------------------------------------------------------------
         if (!shareToken) {
-          needsToken = true;
-        } else {
-          apiUrl = `https://api.komoot.de/v007/tours/${tourId}?share_token=${shareToken}`;
+          statusDiv.innerText = "Looking up Komoot share token...";
+
+          // Strategy 1: scrape Komoot's own share-dialog inputs from the DOM.
+          let extracted = await extractKomootShareTokenFromDOM(tabs[0].id);
+
+          // Strategy 2: fall back to calling Komoot's share_token API directly
+          // with the user's session cookie. This always works when logged in,
+          // even if the share dialog has never been opened.
+          if (!extracted?.token) {
+            statusDiv.innerText = "Requesting share token from Komoot...";
+            extracted = await fetchKomootShareTokenViaApi(tourId);
+          }
+
+          if (extracted?.token) {
+            shareToken = extracted.token;
+            console.log(`[TrackDrop] Got share_token via ${extracted.source}`);
+          }
         }
+
+        if (!shareToken) {
+          // Still no token — fall back to the original "tell the user to
+          // share manually" warning.
+          throw new Error("Komoot route is not shared.");
+        }
+
+        // Build the URL we'll send to the phone: a clean shared link with
+        // just the share_token, no tracking params. This is the URL Komoot
+        // itself uses for sharing.
+        sendUrl = `https://www.komoot.com/tour/${tourId}?share_token=${shareToken}`;
+        apiUrl = `https://api.komoot.de/v007/tours/${tourId}?share_token=${shareToken}`;
       } else if (isRwgps) {
         // Match either /routes/ or /trips/
         const routeMatch = currentTabUrl.match(/\/(routes|trips)\/(\d+)/);
@@ -96,10 +320,6 @@ async function validateCurrentTab() {
         } else {
           apiUrl = `https://ridewithgps.com/${pathType}/${routeId}.json`;
         }
-      }
-
-      if (needsToken) {
-        throw new Error("Komoot route is not shared.");
       }
 
       // Ping the API!
@@ -166,14 +386,14 @@ document.getElementById('pairBtn').addEventListener('click', () => {
 // Handle Sending
 sendBtn.addEventListener('click', () => {
   chrome.storage.local.get(['fcmToken'], (result) => {
-    if (!result.fcmToken || !currentTabUrl) return;
+    if (!result.fcmToken || !sendUrl) return;
 
     statusDiv.innerText = "Sending...";
 
     fetch(SEND_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token: result.fcmToken, url: currentTabUrl })
+      body: JSON.stringify({ token: result.fcmToken, url: sendUrl })
     })
     .then(response => {
       if (!response.ok) {
