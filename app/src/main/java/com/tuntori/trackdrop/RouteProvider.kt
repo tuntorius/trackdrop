@@ -24,7 +24,7 @@ interface RouteProvider {
 
 // --- Registry ---
 object ProviderRegistry {
-    private val providers = listOf(KomootService, RideWithGpsService)
+    private val providers = listOf(KomootService, RideWithGpsService, OpenRunnerService)
 
     fun getProviderForUrl(url: String): RouteProvider? {
         return providers.find { it.isValidUrl(url) }
@@ -33,7 +33,10 @@ object ProviderRegistry {
 
 // --- Shared Network Utilities ---
 object NetworkUtils {
-    fun fetchJson(urlString: String): JSONObject {
+    fun fetchJson(
+        urlString: String,
+        forbiddenMessage: String = "Access denied — is the share token still valid?"
+    ): JSONObject {
         val conn = (URL(urlString).openConnection() as HttpURLConnection).apply {
             connectTimeout = 15000
             readTimeout = 15000
@@ -41,7 +44,7 @@ object NetworkUtils {
             setRequestProperty("User-Agent", "TrackDrop/1.0 (Android)")
         }
         try {
-            if (conn.responseCode == 403) throw ApiException("Access denied — is the share token still valid?")
+            if (conn.responseCode == 403) throw ApiException(forbiddenMessage)
             if (conn.responseCode == 404) throw ApiException("Route not found. Check the URL.")
             if (conn.responseCode != 200) throw ApiException("API error (${conn.responseCode}).")
             val body = conn.inputStream.bufferedReader().use { it.readText() }

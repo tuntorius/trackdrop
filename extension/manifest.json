@@ -2,12 +2,13 @@
   "manifest_version": 3,
   "name": "TrackDrop",
   "version": "1.0",
-  "description": "Send Komoot and RideWithGPS routes to your TrackDrop app on your phone via push notification.",
+  "description": "Send Komoot, RideWithGPS and OpenRunner routes to your TrackDrop app on your phone via push notification.",
   "permissions": ["activeTab", "storage", "scripting", "cookies"],
   "host_permissions": [
     "https://sendtrack-fptlqp3r2a-uc.a.run.app/*",
     "https://api.komoot.de/*",
-    "https://ridewithgps.com/*"
+    "https://ridewithgps.com/*",
+    "https://api.openrunner.com/*"
   ],
   "icons": {
     "16": "icons/icon16.png",

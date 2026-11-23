@@ -21,7 +21,8 @@ exports.sendTrack = functions.https.onRequest(async (req, res) => {
 
   const isKomoot = url.includes("komoot.com/tour/");
   const isRwgps = url.includes("ridewithgps.com/routes/") || url.includes("ridewithgps.com/trips/");
-  if (!isKomoot && !isRwgps) {
+  const isOpenrunner = url.includes("openrunner.com/") && url.includes("/route-details/");
+  if (!isKomoot && !isRwgps && !isOpenrunner) {
     res.status(400).send("Unsupported URL format");
     return;
   }

@@ -220,6 +220,21 @@ function showSendView() {
   sendView.classList.remove('hidden');
 }
 
+/**
+ * Returns the numeric route ID for a public OpenRunner route-details URL, or
+ * null if the URL isn't one. Language prefixes such as /en/ are ignored.
+ */
+function openrunnerRouteId(url) {
+  try {
+    const u = new URL(url);
+    if (!/(^|\.)openrunner\.com$/i.test(u.hostname)) return null;
+    const match = u.pathname.match(/\/route-details\/(\d+)/);
+    return match ? match[1] : null;
+  } catch (_) {
+    return null;
+  }
+}
+
 // Run as soon as the popup opens
 async function validateCurrentTab() {
   chrome.tabs.query({active: true, currentWindow: true}, async (tabs) => {
@@ -230,10 +245,12 @@ async function validateCurrentTab() {
     const isKomoot = currentTabUrl.includes("komoot.com/tour/");
     // Accept both routes and trips
     const isRwgps = currentTabUrl.includes("ridewithgps.com/routes/") || currentTabUrl.includes("ridewithgps.com/trips/");
-    
-    if (!isKomoot && !isRwgps) {
+    const openrunnerId = openrunnerRouteId(currentTabUrl);
+    const isOpenrunner = openrunnerId !== null;
+
+    if (!isKomoot && !isRwgps && !isOpenrunner) {
       sendBtn.disabled = true;
-      statusDiv.innerText = "Open a Komoot or RideWithGPS route to send.";
+      statusDiv.innerText = "Open a Komoot, RideWithGPS or OpenRunner route to send.";
       warningText.classList.add('hidden');
       return;
     }
@@ -320,12 +337,25 @@ async function validateCurrentTab() {
         } else {
           apiUrl = `https://ridewithgps.com/${pathType}/${routeId}.json`;
         }
+      } else if (isOpenrunner) {
+        // OpenRunner only exposes public routes. The route-details URL is the
+        // only supported scheme; language prefixes are ignored by the phone app.
+        apiUrl = `https://api.openrunner.com/api/v2/routes/${openrunnerId}`;
       }
 
       // Ping the API!
       const response = await fetch(apiUrl, { method: 'GET' });
 
       if (response.ok) {
+        // OpenRunner can still answer with a private route payload, so check
+        // the flag explicitly rather than trusting the HTTP status alone.
+        if (isOpenrunner) {
+          const payload = await response.json().catch(() => null);
+          if (payload?.data?.is_private) {
+            throw new Error("Private OpenRunner route.");
+          }
+        }
+
         // 200 OK! The route is accessible.
         sendBtn.disabled = false;
         statusDiv.innerText = "Ready to send!";
@@ -343,14 +373,20 @@ async function validateCurrentTab() {
       sendBtn.disabled = true;
       statusDiv.innerText = "";
       
-      let providerName = isKomoot ? "Komoot" : "RideWithGPS";
-      
-      warningText.innerHTML = `&#9888; <b>Cannot send this route.</b><br><br>` +
-                              `This route is private. To send it to your phone, you need to get a public share link from ${providerName}.<br><br>` +
-                              `1. Click the <b>Share</b> button on ${providerName}.<br>` +
-                              `2. Copy the link they give you.<br>` +
-                              `3. Open that new link in a new browser tab.<br>` +
-                              `4. Click the TrackDrop extension on that shared page.`;
+      let providerName = isKomoot ? "Komoot" : (isRwgps ? "RideWithGPS" : "OpenRunner");
+
+      if (isOpenrunner) {
+        warningText.innerHTML = `&#9888; <b>Cannot send this route.</b><br><br>` +
+                                `OpenRunner only allows public routes to be sent to TrackDrop. ` +
+                                `Make sure the route is public and you are on its <b>route-details</b> page.`;
+      } else {
+        warningText.innerHTML = `&#9888; <b>Cannot send this route.</b><br><br>` +
+                                `This route is private. To send it to your phone, you need to get a public share link from ${providerName}.<br><br>` +
+                                `1. Click the <b>Share</b> button on ${providerName}.<br>` +
+                                `2. Copy the link they give you.<br>` +
+                                `3. Open that new link in a new browser tab.<br>` +
+                                `4. Click the TrackDrop extension on that shared page.`;
+      }
       warningText.classList.remove('hidden');
     }
   });

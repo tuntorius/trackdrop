@@ -1,6 +1,6 @@
 # TrackDrop
 
-> Share a route from Komoot or RideWithGPS, drop it into any GPX-capable app — no file juggling required.
+> Share a route from Komoot, RideWithGPS or OpenRunner, drop it into any GPX-capable app — no file juggling required.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.x-purple.svg)](https://kotlinlang.org/)
@@ -78,6 +78,7 @@ Browser (Komoot/RideWithGPS)  →  TrackDrop extension  →  Firebase  →  push
 | --- | --- | --- |
 | **Komoot** | ✅ | ✅ (share token via share sheet) |
 | **RideWithGPS** | ✅ | ✅ (privacy code / share link) |
+| **OpenRunner** | ✅ | ❌ (OpenRunner has no way to share private routes) |
 
 More providers may be added in the future.
 
@@ -105,6 +106,7 @@ More providers may be added in the future.
 │       │   ├── TrackDropMessagingService.kt # Firebase push handler
 │       │   ├── KomootService.kt             # Komoot API integration
 │       │   ├── RideWithGpsService.kt        # RideWithGPS API integration
+│       │   ├── OpenRunnerService.kt         # OpenRunner API integration
 │       │   ├── RoutePreviewView.kt          # Inline route visualization
 │       │   └── ...
 │       └── AndroidManifest.xml
@@ -171,7 +173,7 @@ You'll need the Firebase CLI installed and authenticated (`firebase login`). Ena
 
 TrackDrop collects no personal data and includes no analytics or ads. The app requests only two permissions:
 
-- `INTERNET` — to fetch route data from Komoot/RideWithGPS.
+- `INTERNET` — to fetch route data from Komoot/RideWithGPS/OpenRunner.
 - `POST_NOTIFICATIONS` — to alert you when a track is pushed from the PC extension (Android 13+).
 
 Pairing codes are random, one-time use, and deleted immediately after a successful pair. Full details: [`privacy-policy.md`](privacy-policy.md). Data deletion instructions: [`data-deletion.md`](data-deletion.md).
