@@ -13,7 +13,7 @@ object RideWithGpsService : RouteProvider {
         val uri = Uri.parse(url)
         // Match either /routes/ or /trips/ and capture the ID
         val routeMatch = Regex("""/(routes|trips)/(\d+)""").find(uri.path ?: "")
-            ?: throw ApiException("No RideWithGPS route/trip ID found in URL.")
+            ?: throw ApiException(R.string.error_rwgps_no_route_id)
 
         // The ID is now in group 2 because (routes|trips) is group 1
         val routeId = routeMatch.groupValues[2]
@@ -38,7 +38,7 @@ object RideWithGpsService : RouteProvider {
         val down = json.optDouble("elevation_loss", 0.0)
 
         val items = json.optJSONArray("track_points")
-            ?: throw ApiException("No coordinate data in this route.")
+            ?: throw ApiException(R.string.error_no_coordinates)
 
         val points = mutableListOf<Pair<Double, Double>>()
         val gpx = buildString {

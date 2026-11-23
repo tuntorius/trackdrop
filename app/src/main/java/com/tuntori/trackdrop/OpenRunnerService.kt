@@ -36,18 +36,18 @@ object OpenRunnerService : RouteProvider {
         val routeId = ROUTE_PATH.find(uri.path ?: "")
             ?.groupValues
             ?.get(1)
-            ?: throw ApiException("No OpenRunner route ID found in URL.")
+            ?: throw ApiException(R.string.error_openrunner_no_route_id)
 
         val json = NetworkUtils.fetchJson(
             "$API_BASE/$routeId",
-            forbiddenMessage = "Access denied. OpenRunner only supports public routes."
+            forbiddenMessageRes = R.string.error_openrunner_access_denied
         )
 
         val route = json.optJSONObject("data")
-            ?: throw ApiException("Unexpected response from OpenRunner.")
+            ?: throw ApiException(R.string.error_openrunner_unexpected_response)
 
         if (route.optBoolean("is_private", false)) {
-            throw ApiException("This OpenRunner route is private. Only public routes are supported.")
+            throw ApiException(R.string.error_openrunner_private_route)
         }
 
         val routeName = route.optString("name", "OpenRunner Route $routeId")
@@ -58,9 +58,9 @@ object OpenRunnerService : RouteProvider {
         val down = elevation?.optDouble("descent", 0.0) ?: 0.0
 
         val shape = route.optJSONObject("shape")
-            ?: throw ApiException("No coordinate data in this route.")
+            ?: throw ApiException(R.string.error_no_coordinates)
         val encodedShape = shape.optString("full_encoded", "")
-        if (encodedShape.isEmpty()) throw ApiException("No coordinate data in this route.")
+        if (encodedShape.isEmpty()) throw ApiException(R.string.error_no_coordinates)
 
         val points = decodePolyline(encodedShape)
 

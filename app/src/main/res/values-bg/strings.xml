@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- app_name is intentionally not localized: the brand name stays "TrackDrop" -->
+
+    <!-- Accessibility -->
+    <string name="cd_trackdrop_logo">Лого на TrackDrop</string>
+    <string name="cd_app_icon">Икона на приложение</string>
+
+    <!-- Main screen -->
+    <string name="header_subtitle">Споделете връзка или я изпратете от компютъра си. Маршрутът се появява веднага.</string>
+    <string name="url_hint_waiting">Изчакване на маршрут…</string>
+    <string name="fetching_route">Изтегляне на маршрута…</string>
+    <string name="tour_stats">%1$.1f км  ·  %2$d м изкачване  ·  %3$d м спускане</string>
+    <string name="drop_to">Добави към...</string>
+    <string name="pair_with_pc_browser">Свързване с браузъра на компютъра</string>
+    <string name="generating_code">Генериране на код…</string>
+
+    <!-- Pairing -->
+    <string name="pair_with_pc">Свързване с компютър</string>
+    <string name="pair_permission_explanation">За да получавате маршрути от компютъра си, TrackDrop се нуждае от разрешение за показване на известия.\n\nНатиснете OK, за да продължите към заявката за разрешение.</string>
+    <string name="pair_code_message">Отворете TrackDrop разширението в браузъра си и въведете този код:\n\n%1$s</string>
+    <string name="action_done">Готово</string>
+    <string name="notifications_blocked_title">Известията са блокирани</string>
+    <string name="notifications_blocked_message">На TrackDrop е нужно разрешение за известия, за да получава маршрути от компютъра ви, но в момента то е блокирано. Моля, включете го в настройките.</string>
+    <string name="action_open_settings">Отваряне на настройките</string>
+
+    <!-- Notifications -->
+    <string name="notif_channel_name">Получени маршрути</string>
+    <string name="notif_new_track_title">Получен нов маршрут от компютъра</string>
+    <string name="notif_new_track_text">Натиснете, за да отворите.</string>
+    <string name="notif_error_title">Грешка</string>
+
+    <!-- Errors -->
+    <string name="error_unknown">Неизвестна грешка</string>
+    <string name="error_no_internet">Няма интернет връзка. Проверете мрежата си и опитайте отново.</string>
+    <string name="error_unsupported_shared_text">Споделеният текст не е поддържана връзка към маршрут.</string>
+    <string name="error_unsupported_url">Неподдържан формат на връзката.</string>
+    <string name="error_fetch_pushed_failed">Неуспешно изтегляне на изпратения маршрут.</string>
+    <string name="error_notifications_required">Известията трябва да са включени, за да получавате маршрути от компютъра си.</string>
+    <string name="error_fcm_token_failed">Неуспешно получаване на FCM токен.</string>
+    <string name="error_access_denied_share_token">Достъпът е отказан — валиден ли е все още токенът за споделяне?</string>
+    <string name="error_route_not_found">Маршрутът не е намерен. Проверете връзката.</string>
+    <string name="error_api">Грешка в API (%1$d).</string>
+    <string name="error_no_coordinates">В този маршрут няма данни за координати.</string>
+    <string name="error_komoot_no_tour_id">Във връзката не е открит идентификатор на маршрут в Komoot.</string>
+    <string name="error_komoot_no_share_token">Не е открит share_token. Komoot маршрутът трябва да е публично споделен.</string>
+    <string name="error_rwgps_no_route_id">Във връзката не е открит идентификатор на маршрут или пътуване в RideWithGPS.</string>
+    <string name="error_openrunner_no_route_id">Във връзката не е открит идентификатор на маршрут в OpenRunner.</string>
+    <string name="error_openrunner_access_denied">Достъпът е отказан. OpenRunner поддържа само публични маршрути.</string>
+    <string name="error_openrunner_unexpected_response">Неочакван отговор от OpenRunner.</string>
+    <string name="error_openrunner_private_route">Този маршрут в OpenRunner е частен. Поддържат се само публични маршрути.</string>
+    <string name="error_pairing_register_failed">Неуспешно регистриране на код за свързване.</string>
+    <string name="error_pairing_network">Мрежова грешка при регистриране на кода.</string>
+</resources>

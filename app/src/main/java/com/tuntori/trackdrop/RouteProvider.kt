@@ -1,5 +1,6 @@
 package com.tuntori.trackdrop
 
+import androidx.annotation.StringRes
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
@@ -7,7 +8,15 @@ import java.net.URL
 // --- Shared Models ---
 data class Tour(val name: String, val distance: Double, val up: Double, val down: Double)
 data class FetchResult(val tour: Tour, val gpx: String, val filename: String, val points: List<Pair<Double, Double>>, val url: String)
-class ApiException(message: String) : Exception(message)
+
+/**
+ * A failure that should be shown to the user. Carries a string resource instead
+ * of a ready-made message so the UI layer can resolve it in the current locale.
+ */
+class ApiException(
+    @StringRes val messageRes: Int,
+    vararg val formatArgs: Any
+) : Exception()
 
 // --- Provider Interface ---
 interface RouteProvider {
@@ -35,7 +44,7 @@ object ProviderRegistry {
 object NetworkUtils {
     fun fetchJson(
         urlString: String,
-        forbiddenMessage: String = "Access denied — is the share token still valid?"
+        @StringRes forbiddenMessageRes: Int = R.string.error_access_denied_share_token
     ): JSONObject {
         val conn = (URL(urlString).openConnection() as HttpURLConnection).apply {
             connectTimeout = 15000
@@ -44,9 +53,9 @@ object NetworkUtils {
             setRequestProperty("User-Agent", "TrackDrop/1.0 (Android)")
         }
         try {
-            if (conn.responseCode == 403) throw ApiException(forbiddenMessage)
-            if (conn.responseCode == 404) throw ApiException("Route not found. Check the URL.")
-            if (conn.responseCode != 200) throw ApiException("API error (${conn.responseCode}).")
+            if (conn.responseCode == 403) throw ApiException(forbiddenMessageRes)
+            if (conn.responseCode == 404) throw ApiException(R.string.error_route_not_found)
+            if (conn.responseCode != 200) throw ApiException(R.string.error_api, conn.responseCode)
             val body = conn.inputStream.bufferedReader().use { it.readText() }
             return JSONObject(body)
         } finally {

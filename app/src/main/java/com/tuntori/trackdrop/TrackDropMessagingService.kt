@@ -25,7 +25,11 @@ class TrackDropMessagingService : FirebaseMessagingService() {
             if (ForegroundManager.listener != null) {
                 ForegroundManager.listener?.invoke(null)
             } else {
-                showNotification("Error", "Unsupported URL format.", null)
+                showNotification(
+                    getString(R.string.notif_error_title),
+                    getString(R.string.error_unsupported_url),
+                    null
+                )
             }
             return
         }
@@ -50,7 +54,11 @@ class TrackDropMessagingService : FirebaseMessagingService() {
                 .edit()
                 .putString(PENDING_URL_KEY, url)
                 .apply()
-            showNotification("New track received from PC", "Tap to open.", url)
+            showNotification(
+                getString(R.string.notif_new_track_title),
+                getString(R.string.notif_new_track_text),
+                url
+            )
         }
     }
 
@@ -58,7 +66,11 @@ class TrackDropMessagingService : FirebaseMessagingService() {
         val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(CHANNEL_ID, "Received Tracks", NotificationManager.IMPORTANCE_HIGH)
+            val channel = NotificationChannel(
+                CHANNEL_ID,
+                getString(R.string.notif_channel_name),
+                NotificationManager.IMPORTANCE_HIGH
+            )
             notificationManager.createNotificationChannel(channel)
         }
 

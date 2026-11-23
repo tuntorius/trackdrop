@@ -15,6 +15,7 @@ import android.view.View
 import android.widget.ImageView
 import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.StringRes
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -77,7 +78,7 @@ class MainActivity : AppCompatActivity() {
                     binding.urlLabel.text = url
                     scheduleFetch(url, provider)
                 } else {
-                    showError("Shared text is not a supported track URL.")
+                    showError(R.string.error_unsupported_shared_text)
                 }
                 intent.action = null
             }
@@ -91,7 +92,7 @@ class MainActivity : AppCompatActivity() {
             if (result != null) {
                 handleForegroundPush(result)
             } else {
-                showError("Failed to fetch pushed track.")
+                showError(R.string.error_fetch_pushed_failed)
             }
         }
 
@@ -126,7 +127,7 @@ class MainActivity : AppCompatActivity() {
                 binding.urlLabel.text = url
                 scheduleFetch(url, provider)
             } else {
-                showError("Unsupported URL format.")
+                showError(R.string.error_unsupported_url)
             }
         }
     }
@@ -178,10 +179,12 @@ class MainActivity : AppCompatActivity() {
         try {
             val result = withContext(Dispatchers.IO) { provider.fetchTour(url) }
             showSuccessUI(result)
+        } catch (e: ApiException) {
+            showError(e.messageRes, *e.formatArgs)
         } catch (e: SocketException) {
-            showError("No internet connection. Check your network and try again.")
+            showError(R.string.error_no_internet)
         } catch (e: Exception) {
-            showError(e.message ?: "Unknown error")
+            showErrorText(e.message ?: getString(R.string.error_unknown))
         } finally {
             isFetching = false
         }
@@ -191,7 +194,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun showLoadingUI() {
         runOnUiThread {
-            binding.urlLabel.text = "Fetching route..."
+            binding.urlLabel.text = getString(R.string.fetching_route)
             binding.loadingBar.visibility = View.VISIBLE
             binding.errorText.visibility = View.GONE
             binding.tourCard.visibility = View.GONE
@@ -204,7 +207,8 @@ class MainActivity : AppCompatActivity() {
             currentResult = result
             binding.urlLabel.text = result.url
             binding.tourName.text = result.tour.name
-            binding.tourStats.text = "%.1f km  ·  %d m up  ·  %d m down".format(
+            binding.tourStats.text = getString(
+                R.string.tour_stats,
                 result.tour.distance / 1000, result.tour.up.toInt(), result.tour.down.toInt()
             )
             binding.loadingBar.visibility = View.GONE
@@ -217,7 +221,11 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun showError(msg: String) {
+    private fun showError(@StringRes messageRes: Int, vararg formatArgs: Any) {
+        showErrorText(getString(messageRes, *formatArgs))
+    }
+
+    private fun showErrorText(msg: String) {
         runOnUiThread {
             binding.loadingBar.visibility = View.GONE
             binding.tourCard.visibility = View.GONE
@@ -276,7 +284,7 @@ class MainActivity : AppCompatActivity() {
             if (!ActivityCompat.shouldShowRequestPermissionRationale(this, Manifest.permission.POST_NOTIFICATIONS)) {
                 showNotificationSettingsDialog()
             } else {
-                showError("Notifications must be enabled to receive tracks from your PC.")
+                showError(R.string.error_notifications_required)
             }
             binding.btnPairBrowser.isEnabled = true
         }
@@ -289,12 +297,12 @@ class MainActivity : AppCompatActivity() {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
                     AlertDialog.Builder(this)
-                        .setTitle("Pair with PC")
-                        .setMessage("To receive tracks from your PC, TrackDrop needs permission to show notifications when a link is sent.\n\nClick OK to continue to the permission request.")
-                        .setPositiveButton("OK") { _, _ ->
+                        .setTitle(getString(R.string.pair_with_pc))
+                        .setMessage(getString(R.string.pair_permission_explanation))
+                        .setPositiveButton(getString(android.R.string.ok)) { _, _ ->
                             requestNotificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
                         }
-                        .setNegativeButton("Cancel") { _, _ ->
+                        .setNegativeButton(getString(android.R.string.cancel)) { _, _ ->
                             hidePairingProgress()
                             binding.btnPairBrowser.isEnabled = true // Re-enable on cancel
                         }
@@ -336,7 +344,7 @@ class MainActivity : AppCompatActivity() {
             } else {
                 Log.e("TrackDrop", "Failed to get FCM token", task.exception)
                 hidePairingProgress()
-                showError("Failed to get FCM token.")
+                showError(R.string.error_fcm_token_failed)
                 binding.btnPairBrowser.isEnabled = true
             }
         }
@@ -345,9 +353,9 @@ class MainActivity : AppCompatActivity() {
     private fun showPairingCodeDialog(code: String) {
         val formattedCode = "${code.substring(0,3)}-${code.substring(3,6)}"
         AlertDialog.Builder(this)
-            .setTitle("Pair with PC")
-            .setMessage("Open the TrackDrop extension in your browser and enter this code:\n\n$formattedCode")
-            .setPositiveButton("Done") { _, _ ->
+            .setTitle(getString(R.string.pair_with_pc))
+            .setMessage(getString(R.string.pair_code_message, formattedCode))
+            .setPositiveButton(getString(R.string.action_done)) { _, _ ->
                 binding.btnPairBrowser.isEnabled = true // Re-enable when user clicks Done
             }
             .setOnCancelListener {
@@ -366,14 +374,14 @@ class MainActivity : AppCompatActivity() {
 
     private fun showNotificationSettingsDialog() {
         AlertDialog.Builder(this)
-            .setTitle("Notifications are blocked")
-            .setMessage("TrackDrop needs notification permission to receive tracks from your PC, but it's currently blocked. Please enable it in Settings.")
-            .setPositiveButton("Open Settings") { _, _ ->
+            .setTitle(getString(R.string.notifications_blocked_title))
+            .setMessage(getString(R.string.notifications_blocked_message))
+            .setPositiveButton(getString(R.string.action_open_settings)) { _, _ ->
                 val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
                     .putExtra(Settings.EXTRA_APP_PACKAGE, packageName)
                 startActivity(intent)
             }
-            .setNegativeButton("Cancel", null)
+            .setNegativeButton(getString(android.R.string.cancel), null)
             .show()
     }
 }

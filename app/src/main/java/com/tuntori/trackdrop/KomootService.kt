@@ -12,10 +12,10 @@ object KomootService : RouteProvider {
     override fun fetchTour(url: String): FetchResult {
         val uri = Uri.parse(url)
         val tourMatch = Regex("""/tour/(\d+)""").find(uri.path ?: "")
-            ?: throw ApiException("No tour ID found in URL.")
+            ?: throw ApiException(R.string.error_komoot_no_tour_id)
         val tourId = tourMatch.groupValues[1]
         val shareToken = uri.getQueryParameter("share_token")
-            ?: throw ApiException("No share_token found. The route must be publicly shared.")
+            ?: throw ApiException(R.string.error_komoot_no_share_token)
 
         val tourUrl = "https://api.komoot.de/v007/tours/$tourId?share_token=$shareToken"
         val tourJson = NetworkUtils.fetchJson(tourUrl)
@@ -31,7 +31,7 @@ object KomootService : RouteProvider {
 
         val coordsJson = NetworkUtils.fetchJson(coordsUrl)
         val items = coordsJson.optJSONArray("items")
-            ?: throw ApiException("No coordinate data in this route.")
+            ?: throw ApiException(R.string.error_no_coordinates)
 
         val points = mutableListOf<Pair<Double, Double>>()
         val gpx = buildString {

@@ -15,10 +15,10 @@ object PairingApi {
 
     /**
      * Registers the code + FCM token with the Cloud Function.
-     * Returns null on success, or an error message on failure.
-     * Must be called off the main thread.
+     * Returns null on success, or the string resource ID of an error message
+     * on failure. Must be called off the main thread.
      */
-    fun registerPairingCode(code: String, token: String): String? {
+    fun registerPairingCode(code: String, token: String): Int? {
         return try {
             val url = URL(REGISTER_URL)
             val conn = (url.openConnection() as HttpURLConnection).apply {
@@ -43,11 +43,11 @@ object PairingApi {
                 null
             } else {
                 Log.e(TAG, "Failed to register code: $responseCode")
-                "Failed to register pairing code."
+                R.string.error_pairing_register_failed
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error registering code", e)
-            "Network error registering code."
+            R.string.error_pairing_network
         }
     }
 }

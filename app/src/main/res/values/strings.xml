@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Brand name: intentionally defined only here so it is never localized -->
+    <string name="app_name" translatable="false">TrackDrop</string>
+
+    <!-- Accessibility -->
+    <string name="cd_trackdrop_logo">TrackDrop logo</string>
+    <string name="cd_app_icon">App icon</string>
+
+    <!-- Main screen -->
+    <string name="header_subtitle">Share a link or push from PC. Your route appears instantly.</string>
+    <string name="url_hint_waiting">Waiting for track…</string>
+    <string name="fetching_route">Fetching route…</string>
+    <string name="tour_stats">%1$.1f km  ·  %2$d m ascent  ·  %3$d m descent</string>
+    <string name="drop_to">Drop to…</string>
+    <string name="pair_with_pc_browser">Pair with PC Browser</string>
+    <string name="generating_code">Generating code…</string>
+
+    <!-- Pairing -->
+    <string name="pair_with_pc">Pair with PC</string>
+    <string name="pair_permission_explanation">To receive tracks from your PC, TrackDrop needs permission to show notifications when a link is sent.\n\nClick OK to continue to the permission request.</string>
+    <string name="pair_code_message">Open the TrackDrop extension in your browser and enter this code:\n\n%1$s</string>
+    <string name="action_done">Done</string>
+    <string name="notifications_blocked_title">Notifications are blocked</string>
+    <string name="notifications_blocked_message">TrackDrop needs notification permission to receive tracks from your PC, but it\'s currently blocked. Please enable it in Settings.</string>
+    <string name="action_open_settings">Open Settings</string>
+
+    <!-- Notifications -->
+    <string name="notif_channel_name">Received Tracks</string>
+    <string name="notif_new_track_title">New track received from PC</string>
+    <string name="notif_new_track_text">Tap to open.</string>
+    <string name="notif_error_title">Error</string>
+
+    <!-- Errors -->
+    <string name="error_unknown">Unknown error</string>
+    <string name="error_no_internet">No internet connection. Check your network and try again.</string>
+    <string name="error_unsupported_shared_text">Shared text is not a supported track URL.</string>
+    <string name="error_unsupported_url">Unsupported URL format.</string>
+    <string name="error_fetch_pushed_failed">Failed to fetch pushed track.</string>
+    <string name="error_notifications_required">Notifications must be enabled to receive tracks from your PC.</string>
+    <string name="error_fcm_token_failed">Failed to get FCM token.</string>
+    <string name="error_access_denied_share_token">Access denied — is the share token still valid?</string>
+    <string name="error_route_not_found">Route not found. Check the URL.</string>
+    <string name="error_api">API error (%1$d).</string>
+    <string name="error_no_coordinates">No coordinate data in this route.</string>
+    <string name="error_komoot_no_tour_id">No tour ID found in URL.</string>
+    <string name="error_komoot_no_share_token">No share_token found. The route must be publicly shared.</string>
+    <string name="error_rwgps_no_route_id">No RideWithGPS route/trip ID found in URL.</string>
+    <string name="error_openrunner_no_route_id">No OpenRunner route ID found in URL.</string>
+    <string name="error_openrunner_access_denied">Access denied. OpenRunner only supports public routes.</string>
+    <string name="error_openrunner_unexpected_response">Unexpected response from OpenRunner.</string>
+    <string name="error_openrunner_private_route">This OpenRunner route is private. Only public routes are supported.</string>
+    <string name="error_pairing_register_failed">Failed to register pairing code.</string>
+    <string name="error_pairing_network">Network error registering code.</string>
+</resources>

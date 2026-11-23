@@ -31,7 +31,7 @@
                     android:layout_height="match_parent"
                     android:src="@drawable/ic_launcher_foreground"
                     android:scaleType="centerCrop"
-                    android:contentDescription="TrackDrop Logo" />     
+                    android:contentDescription="@string/cd_trackdrop_logo" />     
             </FrameLayout>
 
             <LinearLayout
@@ -44,7 +44,7 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="TrackDrop"
+                    android:text="@string/app_name"
                     android:textSize="17sp"
                     android:textStyle="bold"
                     android:textColor="#000000" />
@@ -52,7 +52,7 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Share a link or push from PC. Your route appears instantly."
+                    android:text="@string/header_subtitle"
                     android:textSize="12.5sp"
                     android:textColor="#4F6814" />
             </LinearLayout>
@@ -64,7 +64,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:textIsSelectable="true"
-            android:hint="Waiting for track..."
+            android:hint="@string/url_hint_waiting"
             android:textSize="14sp"
             android:background="@drawable/bg_url_field"
             android:padding="16dp"
@@ -156,7 +156,7 @@
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Drop to…"
+                android:text="@string/drop_to"
                 android:textSize="13sp"
                 android:textStyle="bold"
                 android:textColor="#4F6814"
@@ -177,7 +177,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="20dp"
             android:background="@android:color/transparent"
-            android:text="Pair with PC Browser"
+            android:text="@string/pair_with_pc_browser"
             android:textColor="#4F6814"
             android:textAllCaps="false"
             android:textSize="13sp" />
@@ -202,7 +202,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="8dp"
-                android:text="Generating code…"
+                android:text="@string/generating_code"
                 android:textSize="13sp"
                 android:textColor="#4F6814" />
         </LinearLayout>
