@@ -1,5 +1,10 @@
-const PAIR_URL = "https://us-central1-trackdrop-ea99a.cloudfunctions.net/pairDevice"
+const PAIR_URL = "https://us-central1-trackdrop-ea99a.cloudfunctions.net/pairDevice";
 const SEND_URL = "https://sendtrack-fptlqp3r2a-uc.a.run.app";
+
+// Promise-based WebExtensions API: Firefox exposes `browser`, Chromium exposes
+// `chrome`. Both return promises for the APIs used below when the callback is
+// omitted, so the same popup code works in either browser.
+const api = globalThis.browser ?? globalThis.chrome;
 
 const pairView = document.getElementById('pairView');
 const sendView = document.getElementById('sendView');
@@ -52,7 +57,7 @@ let sendUrl = null;
  */
 async function extractKomootShareTokenFromDOM(tabId) {
   try {
-    const [result] = await chrome.scripting.executeScript({
+    const results = await api.scripting.executeScript({
       target: { tabId },
       func: () => {
         const inputs = document.querySelectorAll('input[data-test-id="share-link-url"]');
@@ -88,7 +93,7 @@ async function extractKomootShareTokenFromDOM(tabId) {
         return null;
       },
     });
-    return result?.result || null;
+    return results?.[0]?.result || null;
   } catch (err) {
     // Most common cause: missing host permission for the active tab.
     console.warn('[TrackDrop] DOM scrape failed:', err);
@@ -108,11 +113,11 @@ async function extractKomootShareTokenFromDOM(tabId) {
  * Komoot's frontend sends the accessToken as `Authorization: Bearer <at>`.
  */
 async function fetchKomootShareTokenViaApi(tourId) {
-  // 1. Read Komoot's session cookie. chrome.cookies needs `cookies` permission
-  //    and host permission for *.komoot.com.
+  // 1. Read Komoot's session cookie. The cookies API needs the `cookies`
+  //    permission and host permission for *.komoot.com.
   let koaAtValue = null;
   try {
-    const cookie = await chrome.cookies.get({
+    const cookie = await api.cookies.get({
       url: 'https://www.komoot.com',
       name: 'koa_at',
     });
@@ -200,15 +205,15 @@ async function fetchKomootShareTokenViaApi(tourId) {
 // POPUP BOOT
 // ---------------------------------------------------------------------------
 
-// Check if already paired on load
-chrome.storage.local.get(['fcmToken'], (result) => {
+async function boot() {
+  const result = await api.storage.local.get(['fcmToken']);
   if (result.fcmToken) {
     showSendView();
-    validateCurrentTab(); // Check URL immediately
+    await validateCurrentTab(); // Check URL immediately
   } else {
     showPairView();
   }
-});
+}
 
 function showPairView() {
   pairView.classList.remove('hidden');
@@ -218,6 +223,37 @@ function showPairView() {
 function showSendView() {
   pairView.classList.add('hidden');
   sendView.classList.remove('hidden');
+}
+
+/**
+ * Render the warning box without assigning HTML strings to innerHTML.
+ * `paragraphs` is an array of paragraphs; each paragraph is an array of
+ * segments such as { text: "plain" } or { text: "bold", bold: true }.
+ */
+function renderWarning(headline, paragraphs) {
+  warningText.replaceChildren();
+
+  const append = (text, bold = false) => {
+    if (bold) {
+      const strong = document.createElement('b');
+      strong.textContent = text;
+      warningText.append(strong);
+    } else {
+      warningText.append(document.createTextNode(text));
+    }
+  };
+
+  append("\u26A0 ");
+  append(headline, true);
+
+  for (const paragraph of paragraphs) {
+    warningText.append(document.createElement('br'), document.createElement('br'));
+    for (const segment of paragraph) {
+      append(segment.text, segment.bold);
+    }
+  }
+
+  warningText.classList.remove('hidden');
 }
 
 /**
@@ -237,223 +273,222 @@ function openrunnerRouteId(url) {
 
 // Run as soon as the popup opens
 async function validateCurrentTab() {
-  chrome.tabs.query({active: true, currentWindow: true}, async (tabs) => {
-    if (!tabs[0]) return;
-    currentTabUrl = tabs[0].url;
-    sendUrl = currentTabUrl; // default: send the URL exactly as it is in the bar
-    
-    const isKomoot = currentTabUrl.includes("komoot.com/tour/");
-    // Accept both routes and trips
-    const isRwgps = currentTabUrl.includes("ridewithgps.com/routes/") || currentTabUrl.includes("ridewithgps.com/trips/");
-    const openrunnerId = openrunnerRouteId(currentTabUrl);
-    const isOpenrunner = openrunnerId !== null;
+  const tabs = await api.tabs.query({active: true, currentWindow: true});
+  const tab = tabs[0];
+  if (!tab) return;
+  currentTabUrl = tab.url || '';
+  sendUrl = currentTabUrl; // default: send the URL exactly as it is in the bar
 
-    if (!isKomoot && !isRwgps && !isOpenrunner) {
-      sendBtn.disabled = true;
-      statusDiv.innerText = "Open a Komoot, RideWithGPS or OpenRunner route to send.";
-      warningText.classList.add('hidden');
-      return;
-    }
+  const isKomoot = currentTabUrl.includes("komoot.com/tour/");
+  // Accept both routes and trips
+  const isRwgps = currentTabUrl.includes("ridewithgps.com/routes/") || currentTabUrl.includes("ridewithgps.com/trips/");
+  const openrunnerId = openrunnerRouteId(currentTabUrl);
+  const isOpenrunner = openrunnerId !== null;
 
-    // Initial state while checking
+  if (!isKomoot && !isRwgps && !isOpenrunner) {
     sendBtn.disabled = true;
-    statusDiv.innerText = "Checking route access...";
+    statusDiv.innerText = "Open a Komoot, RideWithGPS or OpenRunner route to send.";
     warningText.classList.add('hidden');
+    return;
+  }
 
-    try {
-      // Check if the user is in the Route Editor
-      if (currentTabUrl.includes("/edit") || currentTabUrl.includes("/planner")) {
-        sendBtn.disabled = true;
-        statusDiv.innerText = "";
-        warningText.innerHTML = "&#9888; <b>You are in the Route Editor.</b><br><br>" +
-                                "TrackDrop can only send routes that have been saved. " +
-                                "Please save your route first, then open the saved route page to send it to your phone.";
-        warningText.classList.remove('hidden');
-        return; // Stop validation here
-      }
+  // Initial state while checking
+  sendBtn.disabled = true;
+  statusDiv.innerText = "Checking route access...";
+  warningText.classList.add('hidden');
 
-      let apiUrl = null;
-      let needsToken = false;
-
-      if (isKomoot) {
-        const tourMatch = currentTabUrl.match(/\/tour\/(\d+)/);
-        const tokenMatch = currentTabUrl.match(/[?&]share_token=([^&]+)/);
-        
-        if (!tourMatch) throw new Error("Invalid Komoot URL.");
-        
-        const tourId = tourMatch[1];
-        let shareToken = tokenMatch ? tokenMatch[1] : null;
-        
-        // ---------------------------------------------------------------
-        // AUTO-EXTRACT SHARE TOKEN if it's missing from the URL.
-        // (Komoot only puts ?share_token= in the URL if the user opened
-        // a shared link — for normal in-app browsing, we have to fetch
-        // it ourselves.)
-        // ---------------------------------------------------------------
-        if (!shareToken) {
-          statusDiv.innerText = "Looking up Komoot share token...";
-
-          // Strategy 1: scrape Komoot's own share-dialog inputs from the DOM.
-          let extracted = await extractKomootShareTokenFromDOM(tabs[0].id);
-
-          // Strategy 2: fall back to calling Komoot's share_token API directly
-          // with the user's session cookie. This always works when logged in,
-          // even if the share dialog has never been opened.
-          if (!extracted?.token) {
-            statusDiv.innerText = "Requesting share token from Komoot...";
-            extracted = await fetchKomootShareTokenViaApi(tourId);
-          }
-
-          if (extracted?.token) {
-            shareToken = extracted.token;
-            console.log(`[TrackDrop] Got share_token via ${extracted.source}`);
-          }
-        }
-
-        if (!shareToken) {
-          // Still no token — fall back to the original "tell the user to
-          // share manually" warning.
-          throw new Error("Komoot route is not shared.");
-        }
-
-        // Build the URL we'll send to the phone: a clean shared link with
-        // just the share_token, no tracking params. This is the URL Komoot
-        // itself uses for sharing.
-        sendUrl = `https://www.komoot.com/tour/${tourId}?share_token=${shareToken}`;
-        apiUrl = `https://api.komoot.de/v007/tours/${tourId}?share_token=${shareToken}`;
-      } else if (isRwgps) {
-        // Match either /routes/ or /trips/
-        const routeMatch = currentTabUrl.match(/\/(routes|trips)\/(\d+)/);
-        const codeMatch = currentTabUrl.match(/[?&]privacy_code=([^&]+)/);
-        
-        if (!routeMatch) throw new Error("Invalid RideWithGPS URL.");
-        
-        const pathType = routeMatch[1]; // "routes" or "trips"
-        const routeId = routeMatch[2];  // The actual ID
-        const privacyCode = codeMatch ? codeMatch[1] : null;
-        
-        if (privacyCode) {
-          apiUrl = `https://ridewithgps.com/${pathType}/${routeId}.json?privacy_code=${privacyCode}`;
-        } else {
-          apiUrl = `https://ridewithgps.com/${pathType}/${routeId}.json`;
-        }
-      } else if (isOpenrunner) {
-        // OpenRunner only exposes public routes. The route-details URL is the
-        // only supported scheme; language prefixes are ignored by the phone app.
-        apiUrl = `https://api.openrunner.com/api/v2/routes/${openrunnerId}`;
-      }
-
-      // Ping the API!
-      const response = await fetch(apiUrl, { method: 'GET' });
-
-      if (response.ok) {
-        // OpenRunner can still answer with a private route payload, so check
-        // the flag explicitly rather than trusting the HTTP status alone.
-        if (isOpenrunner) {
-          const payload = await response.json().catch(() => null);
-          if (payload?.data?.is_private) {
-            throw new Error("Private OpenRunner route.");
-          }
-        }
-
-        // 200 OK! The route is accessible.
-        sendBtn.disabled = false;
-        statusDiv.innerText = "Ready to send!";
-      } else if (response.status === 403 || response.status === 401) {
-        // 403 Forbidden! Private route without a valid token.
-        throw new Error("Private route. Token missing or invalid.");
-      } else if (response.status === 404) {
-        throw new Error("Route not found.");
-      } else {
-        throw new Error("API returned status " + response.status);
-      }
-
-    } catch (err) {
-      // Validation failed. Show the user how to fix it.
+  try {
+    // Check if the user is in the Route Editor
+    if (currentTabUrl.includes("/edit") || currentTabUrl.includes("/planner")) {
       sendBtn.disabled = true;
       statusDiv.innerText = "";
-      
-      let providerName = isKomoot ? "Komoot" : (isRwgps ? "RideWithGPS" : "OpenRunner");
-
-      if (isOpenrunner) {
-        warningText.innerHTML = `&#9888; <b>Cannot send this route.</b><br><br>` +
-                                `OpenRunner only allows public routes to be sent to TrackDrop. ` +
-                                `Make sure the route is public and you are on its <b>route-details</b> page.`;
-      } else {
-        warningText.innerHTML = `&#9888; <b>Cannot send this route.</b><br><br>` +
-                                `This route is private. To send it to your phone, you need to get a public share link from ${providerName}.<br><br>` +
-                                `1. Click the <b>Share</b> button on ${providerName}.<br>` +
-                                `2. Copy the link they give you.<br>` +
-                                `3. Open that new link in a new browser tab.<br>` +
-                                `4. Click the TrackDrop extension on that shared page.`;
-      }
-      warningText.classList.remove('hidden');
+      renderWarning("You are in the Route Editor.", [
+        [{
+          text: "TrackDrop can only send routes that have been saved. " +
+                "Please save your route first, then open the saved route page to send it to your phone."
+        }],
+      ]);
+      return; // Stop validation here
     }
-  });
+
+    let apiUrl = null;
+
+    if (isKomoot) {
+      const tourMatch = currentTabUrl.match(/\/tour\/(\d+)/);
+      const tokenMatch = currentTabUrl.match(/[?&]share_token=([^&]+)/);
+
+      if (!tourMatch) throw new Error("Invalid Komoot URL.");
+
+      const tourId = tourMatch[1];
+      let shareToken = tokenMatch ? tokenMatch[1] : null;
+
+      // ---------------------------------------------------------------
+      // AUTO-EXTRACT SHARE TOKEN if it's missing from the URL.
+      // (Komoot only puts ?share_token= in the URL if the user opened
+      // a shared link — for normal in-app browsing, we have to fetch
+      // it ourselves.)
+      // ---------------------------------------------------------------
+      if (!shareToken) {
+        statusDiv.innerText = "Looking up Komoot share token...";
+
+        // Strategy 1: scrape Komoot's own share-dialog inputs from the DOM.
+        let extracted = await extractKomootShareTokenFromDOM(tab.id);
+
+        // Strategy 2: fall back to calling Komoot's share_token API directly
+        // with the user's session cookie. This always works when logged in,
+        // even if the share dialog has never been opened.
+        if (!extracted?.token) {
+          statusDiv.innerText = "Requesting share token from Komoot...";
+          extracted = await fetchKomootShareTokenViaApi(tourId);
+        }
+
+        if (extracted?.token) {
+          shareToken = extracted.token;
+          console.log(`[TrackDrop] Got share_token via ${extracted.source}`);
+        }
+      }
+
+      if (!shareToken) {
+        // Still no token — fall back to the original "tell the user to
+        // share manually" warning.
+        throw new Error("Komoot route is not shared.");
+      }
+
+      // Build the URL we'll send to the phone: a clean shared link with
+      // just the share_token, no tracking params. This is the URL Komoot
+      // itself uses for sharing.
+      sendUrl = `https://www.komoot.com/tour/${tourId}?share_token=${shareToken}`;
+      apiUrl = `https://api.komoot.de/v007/tours/${tourId}?share_token=${shareToken}`;
+    } else if (isRwgps) {
+      // Match either /routes/ or /trips/
+      const routeMatch = currentTabUrl.match(/\/(routes|trips)\/(\d+)/);
+      const codeMatch = currentTabUrl.match(/[?&]privacy_code=([^&]+)/);
+
+      if (!routeMatch) throw new Error("Invalid RideWithGPS URL.");
+
+      const pathType = routeMatch[1]; // "routes" or "trips"
+      const routeId = routeMatch[2];  // The actual ID
+      const privacyCode = codeMatch ? codeMatch[1] : null;
+
+      if (privacyCode) {
+        apiUrl = `https://ridewithgps.com/${pathType}/${routeId}.json?privacy_code=${privacyCode}`;
+      } else {
+        apiUrl = `https://ridewithgps.com/${pathType}/${routeId}.json`;
+      }
+    } else if (isOpenrunner) {
+      // OpenRunner only exposes public routes. The route-details URL is the
+      // only supported scheme; language prefixes are ignored by the phone app.
+      apiUrl = `https://api.openrunner.com/api/v2/routes/${openrunnerId}`;
+    }
+
+    // Ping the API!
+    const response = await fetch(apiUrl, { method: 'GET' });
+
+    if (response.ok) {
+      // OpenRunner can still answer with a private route payload, so check
+      // the flag explicitly rather than trusting the HTTP status alone.
+      if (isOpenrunner) {
+        const payload = await response.json().catch(() => null);
+        if (payload?.data?.is_private) {
+          throw new Error("Private OpenRunner route.");
+        }
+      }
+
+      // 200 OK! The route is accessible.
+      sendBtn.disabled = false;
+      statusDiv.innerText = "Ready to send!";
+    } else if (response.status === 403 || response.status === 401) {
+      // 403 Forbidden! Private route without a valid token.
+      throw new Error("Private route. Token missing or invalid.");
+    } else if (response.status === 404) {
+      throw new Error("Route not found.");
+    } else {
+      throw new Error("API returned status " + response.status);
+    }
+
+  } catch (err) {
+    // Validation failed. Show the user how to fix it.
+    sendBtn.disabled = true;
+    statusDiv.innerText = "";
+
+    let providerName = isKomoot ? "Komoot" : (isRwgps ? "RideWithGPS" : "OpenRunner");
+
+    if (isOpenrunner) {
+      renderWarning("Cannot send this route.", [
+        [
+          { text: "OpenRunner only allows public routes to be sent to TrackDrop. " +
+                  "Make sure the route is public and you are on its " },
+          { text: "route-details", bold: true },
+          { text: " page." },
+        ],
+      ]);
+    } else {
+      renderWarning("Cannot send this route.", [
+        [{ text: `This route is private. To send it to your phone, you need to get a public share link from ${providerName}.` }],
+        [{ text: "1. Click the " }, { text: "Share", bold: true }, { text: ` button on ${providerName}.` }],
+        [{ text: "2. Copy the link they give you." }],
+        [{ text: "3. Open that new link in a new browser tab." }],
+        [{ text: "4. Click the TrackDrop extension on that shared page." }],
+      ]);
+    }
+  }
 }
 
 // Handle Pairing
-document.getElementById('pairBtn').addEventListener('click', () => {
+document.getElementById('pairBtn').addEventListener('click', async () => {
   const code = document.getElementById('codeInput').value.trim();
   if (!code) return;
-  
+
   statusDiv.innerText = "Pairing...";
-  
-  fetch(PAIR_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ code: code })
-  })
-  .then(response => {
-    if (!response.ok) throw new Error('Invalid code');
-    return response.json();
-  })
-  .then(data => {
-    chrome.storage.local.set({ fcmToken: data.token }, () => {
-      statusDiv.innerText = "Paired!";
-      setTimeout(() => { statusDiv.innerText = ""; showSendView(); validateCurrentTab(); }, 1000);
+
+  try {
+    const response = await fetch(PAIR_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: code })
     });
-  })
-  .catch(err => {
+    if (!response.ok) throw new Error('Invalid code');
+    const data = await response.json();
+
+    await api.storage.local.set({ fcmToken: data.token });
+    statusDiv.innerText = "Paired!";
+    setTimeout(() => { statusDiv.innerText = ""; showSendView(); validateCurrentTab(); }, 1000);
+  } catch (err) {
     statusDiv.innerText = "Error: " + err.message;
-  });
+  }
 });
 
 // Handle Sending
-sendBtn.addEventListener('click', () => {
-  chrome.storage.local.get(['fcmToken'], (result) => {
-    if (!result.fcmToken || !sendUrl) return;
+sendBtn.addEventListener('click', async () => {
+  const result = await api.storage.local.get(['fcmToken']);
+  if (!result.fcmToken || !sendUrl) return;
 
-    statusDiv.innerText = "Sending...";
+  statusDiv.innerText = "Sending...";
 
-    fetch(SEND_URL, {
+  try {
+    const response = await fetch(SEND_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ token: result.fcmToken, url: sendUrl })
-    })
-    .then(response => {
-      if (!response.ok) {
-        // Read the actual error message from the server
-        return response.text().then(text => { 
-          throw new Error(text || `Server error: ${response.status}`) 
-        });
-      }
-      return response.text();
-    })
-    .then(text => {
-      statusDiv.innerText = "Sent! Check your phone.";
-      setTimeout(() => window.close(), 1500);
-    })
-    .catch(err => {
-      statusDiv.innerText = "Error: " + err.message;
     });
-  });
+    if (!response.ok) {
+      // Read the actual error message from the server
+      const text = await response.text();
+      throw new Error(text || `Server error: ${response.status}`);
+    }
+
+    statusDiv.innerText = "Sent! Check your phone.";
+    setTimeout(() => window.close(), 1500);
+  } catch (err) {
+    statusDiv.innerText = "Error: " + err.message;
+  }
 });
 
 // Handle Unpairing
-document.getElementById('unpairBtn').addEventListener('click', () => {
-  chrome.storage.local.remove('fcmToken', () => {
-    statusDiv.innerText = "Unpaired.";
-    setTimeout(() => { statusDiv.innerText = ""; showPairView(); }, 1000);
-  });
+document.getElementById('unpairBtn').addEventListener('click', async () => {
+  await api.storage.local.remove('fcmToken');
+  statusDiv.innerText = "Unpaired.";
+  setTimeout(() => { statusDiv.innerText = ""; showPairView(); }, 1000);
 });
+
+boot();
