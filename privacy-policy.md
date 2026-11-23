@@ -9,13 +9,13 @@ This page is used to inform visitors regarding the app's policies with the colle
 Information Collection and Use
 TrackDrop does not collect any personally identifiable information (PII).
 
-Track URLs: When you paste a link or receive a link via the browser extension, the URL is sent directly to the respective route provider's API (e.g., Komoot, RideWithGPS) to fetch the GPX data. The Developer does not store, log, or transmit these URLs to any personal server.
+Track URLs: When you paste a link or receive a link via the browser extension, the URL is sent directly to the respective route provider's API (e.g., Komoot, RideWithGPS, OpenRunner) to fetch the GPX data. The Developer does not store, log, or transmit these URLs to any personal server.
 Push Notifications: If you choose to pair the app with the PC browser extension, the app utilizes Firebase Cloud Messaging (FCM). A randomly generated, anonymous device token is temporarily stored in Firebase Realtime Database solely for the purpose of routing the pushed link from your browser to your specific device. This token contains no personal information and the pairing code is deleted immediately after successful pairing.
 Third-Party Services
 The app relies on the following third-party services to function:
 
 Firebase Cloud Messaging & Realtime Database: Used solely for the browser-to-phone push notification feature.
-Komoot API & RideWithGPS API: Used to fetch route coordinates and convert them to GPX format.
+Komoot API, RideWithGPS API & OpenRunner API: Used to fetch route coordinates and convert them to GPX format.
 Google Play Services: Required on the user's device to receive push notifications.
 Log Data
 The Developer does not collect log data. However, third-party services (like Google/Firebase) may collect standard diagnostic information.

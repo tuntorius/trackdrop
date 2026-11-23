@@ -20,3 +20,8 @@ Thumbs.db
 key.properties
 *.jks
 *.keystore
+
+# Browser extension packaging
+web-ext-artifacts/
+*.crx
+*.pem

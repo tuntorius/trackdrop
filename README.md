@@ -110,10 +110,11 @@ More providers may be added in the future.
 │       │   ├── RoutePreviewView.kt          # Inline route visualization
 │       │   └── ...
 │       └── AndroidManifest.xml
-├── extension/           # Chrome browser extension (Manifest v3)
+├── extension/           # Browser extension (Chrome & Firefox, Manifest v3)
 │   ├── manifest.json
 │   ├── popup.html
-│   └── popup.js
+│   ├── popup.js
+│   └── README.md
 ├── backend/             # Firebase Cloud Functions (Node.js)
 │   └── functions/index.js
 ├── PlayStore/           # Store screenshots & assets
@@ -127,7 +128,7 @@ More providers may be added in the future.
 ## Tech stack
 
 - **Android app**: Native Kotlin. Firebase Cloud Messaging is the only external service dependency.
-- **Browser extension**: Manifest v3, vanilla JS, Chrome storage.
+- **Browser extension**: Manifest v3, vanilla JS, `browser`/`chrome` storage — one code base for Chrome and Firefox.
 - **Backend**: Firebase Cloud Functions (Node.js) + Realtime Database for one-time pairing codes.
 
 ---
@@ -150,10 +151,20 @@ Prerequisites: Android Studio, JDK 17, and a Firebase project.
 
 ### Browser extension
 
+The extension is a single Manifest V3 code base that runs in Chrome/Chromium and Firefox 140+.
+
+**Chrome / Chromium**
+
 1. Open `chrome://extensions/` in Chrome or any Chromium browser.
 2. Enable **Developer mode** (top-right toggle).
 3. Click **Load unpacked** and select the `extension/` folder.
-4. Open the extension, enter the pairing code shown in the TrackDrop app, and you're paired.
+
+**Firefox**
+
+1. Open `about:debugging#/runtime/this-firefox`.
+2. Click **Load Temporary Add-on…** and select `extension/manifest.json`.
+
+Open the extension, enter the pairing code shown in the TrackDrop app, and you're paired. See [`extension/README.md`](extension/README.md) for packaging and permission details.
 
 ### Firebase backend
 
